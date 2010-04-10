@@ -23,8 +23,14 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 	
 	public double getNgramProbability(List<String> ngram){
 		
-	
+	    // get count of the ngram
 		int ngramCount 	= ngc.getCount(ngram);
+		// get count of history
+		List<String> n_1gram = new ArrayList<String>();
+		for (int i=0; i<ngram.size()-1; i++){
+			n_1gram.add(ngram.get(i));
+		}
+		int n_1gramCount = ngc.getCount(n_1gram);
 		int totalNgrams	= ngc.totalNgrams;
 		int o = ngram.size();
 		
@@ -33,10 +39,11 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 		if (o == order){
 			double numerator 	= ngramCount + delta;
 			double denominator 	= totalNgrams + langaugeSpaceSize.doubleValue() * delta;  
+			//double denominator = n_1gramCount + langaugeSpaceSize.doubleValue() * delta;
 			return numerator / denominator;
 			
 		}
-		else	{
+		else	{ 
 			// sum over all higher order ngrams.
 			// we can't just use the lower-order counts
 			// because each of the higher-order counts 
@@ -50,6 +57,24 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 			return sum;
 		}
 
+		
+	}
+	
+	public double checkModel(){
+		double sum = 0.0;
+		// total number of seen N-grams (types):
+		double seenNGrams = ngc.NgramVocabulary.size();
+		// total number of unseen N-grams (types):
+		double unseenNGrams = langaugeSpaceSize.doubleValue() - seenNGrams;
+		
+		// probability mass of the seen values :
+		// read the whole table of the NGramCounter :
+		Table t = ngc.table;
+		for (Object w1 : t.keySet()){
+			
+		}
+		
+		return sum;
 		
 	}
 	

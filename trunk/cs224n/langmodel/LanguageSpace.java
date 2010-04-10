@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.math.BigInteger;
+import java.util.*;
 
 public class LanguageSpace {
 
@@ -63,6 +64,12 @@ public class LanguageSpace {
 		// pad to fill size
 		while (result.size() != size){
 			result.push(new Integer(0));
+/*			Integer test = result.pop();
+			result.size();
+			test = result.peek();
+			test = result.get(0);
+			result.contains(test);
+			*/
 		}
 	
 		return result;
