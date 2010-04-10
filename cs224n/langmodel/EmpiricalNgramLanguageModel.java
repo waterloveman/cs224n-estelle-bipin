@@ -25,7 +25,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	private NgramProbabilityEstimator estimator;
 	
 	private static final String STOP = "</S>";
-	
+	private static final String START = "<S>";
 	
 
 
@@ -66,10 +66,27 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// learnt knowledge
 		ngc = new NgramCounter();
 		
-		// for every sentence
+		// for every sentence, store the counts and the vocabulary
+		float totalSentences = (float)sentences.size();
+		System.out.println("\nReading "+totalSentences+" sentences...");
+		int sentenceCounter = 0;
 		for (List<String> sentence : sentences) {
+		  sentenceCounter++;
+		  if (sentenceCounter%1000==0){
+			  System.out.println("   Reading sentence "+sentenceCounter+" ("+sentenceCounter/totalSentences*100+"%)");
+		  }
 		  List<String> stoppedSentence = new ArrayList<String>(sentence);
+		  // add a STOP at the end, and N-1 START at the beginning
 		  stoppedSentence.add(STOP);
+		  for (int i=0; i<order-1; i++){
+			  stoppedSentence.add(0,START);
+		  }
+		  
+		  // debug :
+		  //System.out.println("training on sentence :");
+		  for (int k=0; k<stoppedSentence.size(); k++){
+			//  System.out.println(stoppedSentence.get(k)+" ");
+		  }
 		  
 		  // run a sliding window to extract every ngram
 		  // and add it to our ngram counter
@@ -78,7 +95,71 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			ngc.insert(ngram);
 		  }
 		  
+		  
 		}
+		System.out.println(sentences.size()+" sentences read."+ngc.NgramVocabulary.size()+" ngrams types, "+ngc.totalNgrams+" tokens.");
+		
+		 // debug : print out ngram vocab
+		/*Set<List<String>> vocab = ngc.NgramVocabulary;
+		System.out.println("Ngram vocab :");
+		for (List<String> ngram : vocab){
+			  for (int i=0; i<ngram.size(); i++){
+				  System.out.print(ngram.get(i)+" ");
+			  }
+			  System.out.println("");
+		}*/
+		
+		// build the inverted table : 
+		// count c -> list of ngrams seen c times
+		// build count table :
+		// count c -> number of ngram types seen c times
+		System.out.println("Building inverted table...");
+		ngc.invertTable();
+		System.out.println("Inverted table built. Found "+ngc.invertedTable.size()+" counts.");
+		
+		// debug : print out inverted table
+		/*for (Integer count : ngc.invertedTable.keySet()){
+			  System.out.println("Count "+count);
+			  List<List<String>> ngramList = ngc.invertedTable.get(count);
+			  for (int i=0; i<ngramList.size(); i++){
+				  List<String> ngram = ngramList.get(i);
+				  for (int j=0; j<ngram.size(); j++){
+					  System.out.print(" "+ngram.get(j));
+				  }
+				  System.out.print(", ");
+			  }
+			  System.out.println("");
+		}*/
+		  
+		System.out.println("Filling the count of counts table for "+ngc.invertedTable.size()+" counts...");
+		ngc.fillCountOfCountsTable();
+		System.out.println("Count of counts table filled.");
+		
+		// debug : print out count table
+	/*	for(int i=0; i<ngc.countTable.length; i++){
+			if (ngc.countTable[i]!=0){
+			  System.out.print("Count "+i+" : "+ngc.countTable[i]+" ngrams");
+			  if (ngc.countTable[i]==1){
+				  System.out.print("("+ngc.invertedTable.get(i)+")");
+			  }
+			  System.out.println("");
+			}
+
+		}*/
+		
+		// check for any zeros : this function returns the index of the smallest zero count
+        // if the return is negative, there's a problem. TODO throw a proper error
+		int zeroIdx = ngc.checkZerosInCountOfCountsTable();
+        System.out.println("first non zero : "+zeroIdx);
+        
+		// debug : print out count table
+	  /*for(int i=0; i<ngc.countTable.length; i++){
+			  System.out.println("Count "+i+" : "+ngc.countTable[i]+" ngrams");
+		}*/
+        
+        // Smooth the count of counts table : fit a power log
+        
+		
 		
 		// build an estimator based on the the ngrams
 		// we've seen in training.
@@ -116,12 +197,13 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 
 	/**
 	 * Helper fnc. which given a position and a size, will 
-	 * return the ngram at that position.
+	 * return the ngram STARTTING at that position.
+	 * If the start position is negative, the N-gram will start with <BOS> words.
 	 */	
 	List<String> getNgramAtIndex(List<String> sentence, int index, int size)	{
 		List<String> ngram = new ArrayList<String>();
 		for (int j = 0; j < size; ++j)	{
-			ngram.add( j, sentence.get(index+j) );
+				ngram.add( j, sentence.get(index+j) );
 		}		
 		return ngram;
 	}
@@ -153,7 +235,8 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			
 			if (estimator.getNgramProbability(prevWords) != 0)	{
 				// probability = P(ngram) / P(prevWords)
-				probability =  estimator.getNgramProbability(ngram) / estimator.getNgramProbability(prevWords);
+				//probability =  estimator.getNgramProbability(ngram) / estimator.getNgramProbability(prevWords);
+				probability = estimator.getNgramProbability(ngram);
 			}
 		}
 		
@@ -193,6 +276,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		
 		List<String> stoppedSentence = new ArrayList<String>(sentence);
 		stoppedSentence.add(STOP);
+		for (int i=0; i<order-1; i++){
+			stoppedSentence.add(0,START);
+		}
 		
 		// replace all words not in the vocabulary with a special token
 		Set<String> vocabulary = ngc.vocabulary;
@@ -220,7 +306,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 * of novel words that we might encounter.
 	 */
 	public double checkModel() {
-
+        
 		double sum = 0.0;
 		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, order);
 		while (ls.hasMore())	{
@@ -229,6 +315,12 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		}
 		
 		return sum;
+		
+		/*
+		// second version : doesn't use all combinations, so goes faster
+		return estimator.checkModel();
+		//
+		*/
 	}
 	
 	/**
