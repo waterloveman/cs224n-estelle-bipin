@@ -21,22 +21,17 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 		langaugeSpaceSize = ls.size();
 	}
 	
-	public double getNgramProbability(List<String> ngram){
+	public double getNgramJointProbability(List<String> ngram){
 		
-	    // get count of the ngram
-		int ngramCount 	= ngc.getCount(ngram);
-		// get count of history
-		List<String> n_1gram = new ArrayList<String>();
-		for (int i=0; i<ngram.size()-1; i++){
-			n_1gram.add(ngram.get(i));
-		}
-		int n_1gramCount = ngc.getCount(n_1gram);
-		int totalNgrams	= ngc.totalNgrams;
 		int o = ngram.size();
 		
 		// check to see if we've been asked for the
 		// highest order ngram probability
 		if (o == order){
+		    // get count of the ngram
+			int ngramCount 	= ngc.getCount(ngram);
+			int totalNgrams	= ngc.totalNgrams;
+			
 			double numerator 	= ngramCount + delta;
 			double denominator 	= totalNgrams + langaugeSpaceSize.doubleValue() * delta;  
 			//double denominator = n_1gramCount + langaugeSpaceSize.doubleValue() * delta;
@@ -52,12 +47,33 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 			for (String word : ngc.vocabulary)	{
 				List<String> tmpNgram = new ArrayList<String>(ngram);
 				tmpNgram.add(word);
-				sum += getNgramProbability(tmpNgram);
+				sum += getNgramJointProbability(tmpNgram);
 			}
 			return sum;
 		}
 
 		
+	}
+	
+	public double getNgramConditionalProbability(List<String> ngram) {
+		double probability = 0.0;
+		
+		if (ngram.size() == 1){
+			// no conditioning on previous words
+			probability = getNgramJointProbability(ngram);
+		}
+		else	{
+			// condition on previous words
+			List<String> prevWords = new ArrayList<String>(ngram);
+			prevWords.remove(ngram.size()-1); // remove last word
+			
+			if (getNgramJointProbability(prevWords) != 0)	{
+				// probability = P(ngram) / P(prevWords)
+				probability =  getNgramJointProbability(ngram) / getNgramJointProbability(prevWords);
+			}
+		}
+		
+		return probability;
 	}
 	
 	public double checkModel(){

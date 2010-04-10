@@ -4,6 +4,7 @@ import java.util.List;
 
 public interface NgramProbabilityEstimator {
 
-	public double getNgramProbability(List<String> ngram);
+	public double getNgramJointProbability(List<String> ngram);
+	public double getNgramConditionalProbability(List<String> ngram);
 	
 }

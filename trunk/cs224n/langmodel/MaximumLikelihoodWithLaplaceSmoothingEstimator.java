@@ -26,7 +26,7 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 	 * To avoid a probability of '0', we pretend as if we have seen
 	 * every ngram once more than it appears in the training corpus.
 	 */
-	public double getNgramProbability(List<String> ngram){
+	public double getNgramJointProbability(List<String> ngram){
 		
 		int o = ngram.size();
 
@@ -50,12 +50,33 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 			for (String word : ngc.vocabulary)	{
 				List<String> tmpNgram = new ArrayList<String>(ngram);
 				tmpNgram.add(word);
-				sum += getNgramProbability(tmpNgram);
+				sum += getNgramJointProbability(tmpNgram);
 			}
 			return sum;
 		}
 		
 				
+	}
+	
+	public double getNgramConditionalProbability(List<String> ngram) {
+		double probability = 0.0;
+		
+		if (ngram.size() == 1){
+			// no conditioning on previous words
+			probability = getNgramJointProbability(ngram);
+		}
+		else	{
+			// condition on previous words
+			List<String> prevWords = new ArrayList<String>(ngram);
+			prevWords.remove(ngram.size()-1); // remove last word
+			
+			if (getNgramJointProbability(prevWords) != 0)	{
+				// probability = P(ngram) / P(prevWords)
+				probability =  getNgramJointProbability(ngram) / getNgramJointProbability(prevWords);
+			}
+		}
+		
+		return probability;
 	}
 	
 }

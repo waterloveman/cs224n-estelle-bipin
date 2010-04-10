@@ -2,6 +2,8 @@ package cs224n.langmodel;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -84,9 +86,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  
 		  // debug :
 		  //System.out.println("training on sentence :");
-		  for (int k=0; k<stoppedSentence.size(); k++){
+		  //for (int k=0; k<stoppedSentence.size(); k++){
 			//  System.out.println(stoppedSentence.get(k)+" ");
-		  }
+		  //}
 		  
 		  // run a sliding window to extract every ngram
 		  // and add it to our ngram counter
@@ -118,34 +120,36 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		System.out.println("Inverted table built. Found "+ngc.invertedTable.size()+" counts.");
 		
 		// debug : print out inverted table
-		/*for (Integer count : ngc.invertedTable.keySet()){
+		for (Integer count : ngc.invertedTable.keySet()){
 			  System.out.println("Count "+count);
-			  List<List<String>> ngramList = ngc.invertedTable.get(count);
-			  for (int i=0; i<ngramList.size(); i++){
-				  List<String> ngram = ngramList.get(i);
+			  HashSet<List<String>> ngramList = ngc.invertedTable.get(count);
+			  Iterator<List<String>> iter = ngramList.iterator();
+			  while(iter.hasNext())	{
+				  List<String> ngram = iter.next();
 				  for (int j=0; j<ngram.size(); j++){
 					  System.out.print(" "+ngram.get(j));
 				  }
 				  System.out.print(", ");
 			  }
 			  System.out.println("");
-		}*/
+		}
 		  
 		System.out.println("Filling the count of counts table for "+ngc.invertedTable.size()+" counts...");
 		ngc.fillCountOfCountsTable();
 		System.out.println("Count of counts table filled.");
 		
-		// debug : print out count table
-	/*	for(int i=0; i<ngc.countTable.length; i++){
-			if (ngc.countTable[i]!=0){
-			  System.out.print("Count "+i+" : "+ngc.countTable[i]+" ngrams");
-			  if (ngc.countTable[i]==1){
+		// debug : print out countOfCountsTable table
+		/*for(int i=0; i<ngc.countOfCountsTable.length; i++){
+			if (ngc.countOfCountsTable[i]!=0){
+			  System.out.print("Count "+i+" : "+ngc.countOfCountsTable[i]+" ngrams");
+			  if (ngc.countOfCountsTable[i]==1){
 				  System.out.print("("+ngc.invertedTable.get(i)+")");
 			  }
 			  System.out.println("");
 			}
 
-		}*/
+		}
+		*/
 		
 		// check for any zeros : this function returns the index of the smallest zero count
         // if the return is negative, there's a problem. TODO throw a proper error
@@ -166,8 +170,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// create your own estimator here. this will be 
 		// used in the rest of the functions like
 		// generating-sentences, working out sentence-probabilities etc.
-		
-		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
+	
+        estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
+//		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
 //		estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);
 //		estimator = new MaximumLikelihoodEstimator(ngc);
 		
@@ -221,11 +226,30 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 */
 	public double getWordProbability(List<String> sentence, int index) {
 		double probability = 0.0;
+		if (order == 1 || index == 0){
+			List<String> ngram = getNgramAtIndex(sentence, index, 1);
+			probability = estimator.getNgramConditionalProbability(ngram);
+		}
+		else	{
+			// todo: change this to directly calculate
+			// ngram, not through prevWords. Be careful
+			// to take care of edge cases.
+			List<String> prevWords = getPrevWords(sentence, index);  
+			List<String> ngram = new ArrayList<String>(prevWords);
+			ngram.add(sentence.get(index));
+			
+			probability = estimator.getNgramConditionalProbability(ngram);
+		}
+		return probability;
+	}
+	/*
+	public double getWordProbability(List<String> sentence, int index) {
+		double probability = 0.0;
 		
 		if (order == 1 || index == 0){
 			// no conditioning on previous words
 			List<String> ngram = getNgramAtIndex(sentence, index, 1);
-			probability = estimator.getNgramProbability(ngram);
+			probability = estimator.getNgramJointProbability(ngram);
 		}
 		else	{
 			// condition on previous words
@@ -233,15 +257,15 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			List<String> ngram = new ArrayList<String>(prevWords);
 			ngram.add(sentence.get(index));
 			
-			if (estimator.getNgramProbability(prevWords) != 0)	{
+			if (estimator.getNgramJointProbability(prevWords) != 0)	{
 				// probability = P(ngram) / P(prevWords)
-				//probability =  estimator.getNgramProbability(ngram) / estimator.getNgramProbability(prevWords);
-				probability = estimator.getNgramProbability(ngram);
+				probability =  estimator.getNgramJointProbability(ngram) / estimator.getNgramJointProbability(prevWords);
 			}
 		}
 		
 		return probability;
 	}
+	*/
 	
 	// -----------------------------------------------------------------------
 
@@ -311,7 +335,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, order);
 		while (ls.hasMore())	{
 			List<String> ngram = ls.getNext();
-			sum += estimator.getNgramProbability(ngram);
+			sum += estimator.getNgramJointProbability(ngram);
 		}
 		
 		return sum;
