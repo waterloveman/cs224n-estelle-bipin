@@ -15,19 +15,30 @@ public class NgramCounter {
 	Table 		table;// stores the probabilities
 	Integer 	totalNgrams; // number of Ngrams : tokens
 	Set<String>	vocabulary; // list of unigram types
-	Set<List<String>> NgramVocabulary;//list of Ngram types
+	Vector<HashSet<List<String>>> NgramVocabulary;//list of Ngram types
 	//HashMap<Integer, List<List<String>>> invertedTable; 
-	HashMap<Integer, HashSet<List<String>>> invertedTable; 
-	double[] countOfCountsTable;
+	List<HashMap<Integer, HashSet<List<String>>>> invertedTable; 
+	List<double[]> countOfCountsTable;
 	double[] smoothedCountOfCountsTable;
+	int order;
 	
-	public NgramCounter(){
+	public NgramCounter(int ord){
+		order = ord;
 		table = new Table();
 		totalNgrams = new Integer(0);
 		vocabulary = new HashSet<String>();
-		NgramVocabulary = new HashSet<List<String>>();
+		NgramVocabulary = new Vector<HashSet<List<String>>>(order);
+		for (int i=0; i<order; i++){
+			List<String> unk = new ArrayList<String>();
+			for(int j=0; j<i+1; j++){
+				unk.add("--UNK--");
+			}
+			HashSet<List<String>> newset = new HashSet<List<String>>();
+			newset.add(unk);
+			NgramVocabulary.add(newset);
+		}
 		//invertedTable = new HashMap<Integer, List<List<String>>>();
-		invertedTable = new HashMap<Integer, HashSet<List<String>>>();
+		invertedTable = new ArrayList<HashMap<Integer, HashSet<List<String>>>>();
 		//invertedTable = new ArrayList<List<List<String>>>();
         //invertedTable = new ArrayList<List<String>>();
         
@@ -62,7 +73,28 @@ public class NgramCounter {
 		t.childCount++;		// for final gram
 		
 		totalNgrams++;
-		NgramVocabulary.add(ngram);
+		// insert ngrams of all orders in the vocabulary tables
+		//System.out.println("inserting : "+ngram.get(0)+" "+ngram.get(1));
+		for (int i=order-1; i>-1; i--){
+		//int i = 0;
+		//ngram.remove(1);
+		//	System.out.println("ngram is now reduced to :"+ngram);
+			//System.out.println("hashset #"+i+" before : "+NgramVocabulary.get(0));
+			HashSet<List<String>> vocab = NgramVocabulary.remove(i);
+		//	System.out.println("Size of total table after removal : "+NgramVocabulary.size());
+			vocab.add(ngram);
+		//	System.out.println("hashset #"+i+" after insertion: "+vocab);
+			NgramVocabulary.add(i,vocab);
+	//		System.out.println("hashset #"+i+" after : "+NgramVocabulary.get(i));
+	//		System.out.println("size of total table : "+NgramVocabulary.size());
+			List<String> oldngram = ngram;
+			ngram = new ArrayList<String>();
+			for(int j=0; j<i; j++){
+				ngram.add(oldngram.get(j));
+			}
+	//		System.out.println("===");
+		}
+		//System.out.println("=========================");
 	}
 	
 	
@@ -103,23 +135,27 @@ public class NgramCounter {
 		// list.remove(index) gets the object and removes it from the list.
 		
 		//countTable = new double[NgramVocabulary.size()+1]; // this is a bit too big but never mind
-		float totalTypes = (float)NgramVocabulary.size();
-		int counter = 0;
-		for(List<String> ngram : NgramVocabulary){
-			counter ++;
-			if (counter%1000==0){
-				System.out.println("Doing ngram type number "+counter+". ("+counter/totalTypes*100+"%)");
-			}
-			int count = (int)getCount(ngram);
-			if (!invertedTable.containsKey(count)){
-				HashSet<List<String>> newNgramSet = new HashSet<List<String>>();
-				newNgramSet.add(ngram);
-				invertedTable.put(count,newNgramSet);
-			}else{
-				HashSet<List<String>> ngramSet = invertedTable.get(count);
-				ngramSet.add(ngram);
-				invertedTable.put(count,ngramSet);
-			}
+		for(int ord = 0; ord<order; ord++){
+			System.out.println("NgramCounter.invertTable() : doing "+(ord+1)+"-grams...");
+			HashSet<List<String>> vocab = NgramVocabulary.get(ord);
+			HashMap<Integer, HashSet<List<String>>> invTable = new HashMap<Integer, HashSet<List<String>>>();
+			float totalTypes = (float)vocab.size();
+			int counter = 0;
+			for(List<String> ngram : vocab){
+				counter ++;
+				if (counter%1000==0){
+					System.out.println("NgramCounter.invertTable() : Doing ngram type number "+counter+". ("+counter/totalTypes*100+"%)");
+				}
+				int count = (int)getCount(ngram);
+				if (!invTable.containsKey(count)){
+					HashSet<List<String>> newNgramSet = new HashSet<List<String>>();
+					newNgramSet.add(ngram);
+					invTable.put(count,newNgramSet);
+				}else{
+					HashSet<List<String>> ngramSet = invTable.get(count);
+					ngramSet.add(ngram);
+					invTable.put(count,ngramSet);
+				}
 			
            /* if (!invertedTable.containsKey(count)){
 				//List<List<String>> newNgramList = new ArrayList<List<String>>();
@@ -135,36 +171,53 @@ public class NgramCounter {
             	}
             }*/
 			
-		}
+			}
+			System.out.println("NgramCounter.invertTable() : finished "+(ord+1)+"-grams, found "+invTable.size()+" counts.");
+			invertedTable.add(invTable);
 		
+		}
 		
 		return;
 	}
 	
 
 	public void fillCountOfCountsTable(){
-		// find biggest count
-		int maxCount = 0;
-		for(Integer count : invertedTable.keySet()){
-			maxCount = Math.max(maxCount, (int)count);
+        int[] maxCount = new int[order];
+		for (int ord=0; ord<order; ord++){
+			// find biggest count
+			maxCount[ord] = 0;
+			for(Integer count : invertedTable.get(ord).keySet()){
+				//System.out.println("count in table : "+count);
+				maxCount[ord] = Math.max(maxCount[ord], (int)count);
+			}
+		    //System.out.println("Max count for "+(ord+1)+"-grams : "+maxCount[ord]);
 		}
-	
 		// declare count table
-	    int countTableSize = maxCount+1;
-		countOfCountsTable = new double[countTableSize]; // we store all counts, including zero
-		System.out.println("Count table size : "+countOfCountsTable.length);
+		countOfCountsTable = new ArrayList<double[]>(); // we store all counts, including zero
+		for (int i=0; i<order; i++){
+			double[] table = new double[maxCount[i]+1];
+			countOfCountsTable.add(table);
+		}
 
 		// fill in count table
-		countOfCountsTable[0] = 0;
-		for (Integer count : invertedTable.keySet())
-		{
-		   countOfCountsTable[count] = invertedTable.get(count).size();
+		for (int ord=0; ord<order; ord++){
+			double[] table = countOfCountsTable.get(ord);
+			table[0] = 0;
+			for (Integer count : invertedTable.get(ord).keySet()){
+				table[count] = invertedTable.get(ord).get(count).size();
+			}
 		}
+				
+		System.out.print("Count table size : ");
+		for (int i=0; i<order; i++){
+			System.out.print(countOfCountsTable.get(i).length+" "+(i+1)+"-gram counts, ");
+		}
+		System.out.println("that's pretty cool!");
 		return;
 	}
 	
 	
-	public int checkZerosInCountOfCountsTable(){
+	public int[] checkZerosInCountOfCountsTable(){
 		// findbiggest non zero count
 		/*int biggestNonZeroIdx = countTable.length - 1;
 		for (int i=biggestNonZeroIdx; i>-1; i--){
@@ -183,17 +236,23 @@ public class NgramCounter {
 		countTable = newTable;
 		*/
 		
-		for (int i = 1; i<countOfCountsTable.length; i++){
-			if(countOfCountsTable[i]==0){
-				return i; 
+		int[] result = new int[order];
+		for(int ord=0; ord<order; ord++){
+			result[ord] = -1;
+			double[] table = countOfCountsTable.get(ord);
+			for (int i = 1; i<table.length; i++){
+				if(table[i]==0){
+					result[ord]=i; 
+					break;
+				}
 			}
 		}
 		
-		return -1;
+		return result;
 	}
 	
 	public void createSmoothedCountOfCountsTable(){
-		smoothedCountOfCountsTable = new double[countOfCountsTable.length];
+		//smoothedCountOfCountsTable = new double[countOfCountsTable.length];
 		
 	}
 	
@@ -207,7 +266,7 @@ public class NgramCounter {
 	
 	public static void main(String[] args)	{
 		
-		NgramCounter ngc = new NgramCounter();
+		NgramCounter ngc = new NgramCounter(2);
 		
 		// create a sample ngram-counter by inserting
 		// trigrams from a sentence
