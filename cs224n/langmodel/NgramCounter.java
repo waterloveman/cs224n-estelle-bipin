@@ -197,6 +197,14 @@ public class NgramCounter {
 		
 	}
 	
+	public int nZeroCountNgrams(int order)	{
+		return (int)Math.pow(vocabulary.size(), order) - nNonZeroCountNgrams();
+	}
+	
+	public int nNonZeroCountNgrams()	{
+		return NgramVocabulary.size();
+	}
+	
 	public static void main(String[] args)	{
 		
 		NgramCounter ngc = new NgramCounter();
