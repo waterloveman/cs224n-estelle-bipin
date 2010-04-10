@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.*;
 
 import javax.sound.midi.SysexMessage;
 
@@ -37,7 +38,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 * Constructs a new, empty ngram language model.
 	 */
 	public EmpiricalNgramLanguageModel() {
-		ngc = new NgramCounter();
+		ngc = new NgramCounter(order);
 	}
 
 	/**
@@ -66,7 +67,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// we train.
 		// this way, we over-ride any previously
 		// learnt knowledge
-		ngc = new NgramCounter();
+		ngc = new NgramCounter(order);
 		
 		// for every sentence, store the counts and the vocabulary
 		float totalSentences = (float)sentences.size();
@@ -99,18 +100,31 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  
 		  
 		}
-		System.out.println(sentences.size()+" sentences read."+ngc.NgramVocabulary.size()+" ngrams types, "+ngc.totalNgrams+" tokens.");
+		System.out.println(sentences.size()+" sentences read, containing "+ngc.totalNgrams+" tokens.");
+		System.out.print("Total n-grams : ");
+		for (int i=0; i<order; i++){
+			System.out.print(ngc.NgramVocabulary.get(i).size()+" "+(i+1)+"-grams, ");
+		}
+		System.out.println("tadaaaa!");
 		
 		 // debug : print out ngram vocab
-		/*Set<List<String>> vocab = ngc.NgramVocabulary;
-		System.out.println("Ngram vocab :");
-		for (List<String> ngram : vocab){
+	/*	Set<List<String>> vocabUnigram = ngc.NgramVocabulary.get(0);
+		Set<List<String>> vocabBigram = ngc.NgramVocabulary.get(1);		
+		System.out.println("Unigram vocab :");
+		for (List<String> ngram : vocabUnigram){
 			  for (int i=0; i<ngram.size(); i++){
 				  System.out.print(ngram.get(i)+" ");
 			  }
 			  System.out.println("");
-		}*/
-		
+		}
+		System.out.println("Bigram vocab :");
+		for (List<String> ngram : vocabBigram){
+			  for (int i=0; i<ngram.size(); i++){
+				  System.out.print(ngram.get(i)+" ");
+			  }
+			  System.out.println("");
+		}		*/
+
 		// build the inverted table : 
 		// count c -> list of ngrams seen c times
 		// build count table :
@@ -133,7 +147,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			  }
 			  System.out.println("");
 		}
-		  
+		
 		System.out.println("Filling the count of counts table for "+ngc.invertedTable.size()+" counts...");
 		ngc.fillCountOfCountsTable();
 		System.out.println("Count of counts table filled.");
@@ -147,19 +161,25 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			  }
 			  System.out.println("");
 			}
-
+		}
+		System.out.println("Count of counts table for bigrams :");
+		table = ngc.countOfCountsTable.get(1);
+		for(int i=0; i<table.length; i++){
+			if (table[i]!=0){
+			  System.out.print("   Count "+i+" : "+table[i]+" ngrams");
+			  if (table[i]==1){
+				  System.out.print("("+ngc.invertedTable.get(1).get(i)+")");
+			  }
+			  System.out.println("");
+			}
 		}
 		*/
 		
 		// check for any zeros : this function returns the index of the smallest zero count
         // if the return is negative, there's a problem. TODO throw a proper error
-		int zeroIdx = ngc.checkZerosInCountOfCountsTable();
-        System.out.println("first non zero : "+zeroIdx);
-        
-		// debug : print out count table
-	  /*for(int i=0; i<ngc.countTable.length; i++){
-			  System.out.println("Count "+i+" : "+ngc.countTable[i]+" ngrams");
-		}*/
+		int[] zeroIdx = ngc.checkZerosInCountOfCountsTable();
+        System.out.println("first non zero for unigrams : "+zeroIdx[0]);
+        System.out.println("first non zero for bigrams : "+zeroIdx[1]);
         
         // Smooth the count of counts table : fit a power log
         
