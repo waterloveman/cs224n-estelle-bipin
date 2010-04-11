@@ -30,9 +30,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	 * use the counts of the lower-order ngrams.
 	 */
 	public double getNgramJointProbability(List<String> ngram){
-		//System.out.println("ngram : "+ngram);
+		//System.out.println("\tngram : "+ngram);
 		int ngramCount 	= ngc.getCount(ngram);		
-		//System.out.println("ngramCount : "+ngramCount);
+		//System.out.println("\tngramCount : "+ngramCount);
 		int ord = ngram.size();
 		//System.out.println("ngram size : "+ord);
 		double[] table = GTprobaTable.get(ord-1);
@@ -57,6 +57,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			if (getNgramJointProbability(prevWords) != 0)	{
 				// probability = P(ngram) / P(prevWords)
 				probability =  getNgramJointProbability(ngram) / getNgramJointProbability(prevWords);
+				if (ngram.get(ngram.size()-1).equals("UNK")){
+					//System.out.println("Ngram "+ngram+" : P("+ngram+")/P("+prevWords+") = "+getNgramJointProbability(ngram)+"/"+getNgramJointProbability(prevWords));
+				}
 			}
 		}
 		
@@ -194,6 +197,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			
 			// decide the value of xMin
 			int xMin = 50; 
+			if (xMin>table.length){
+				xMin = table.length/2;
+			}
 			// TODO : this should be tuned : try a few values with on the hold-out data set.
 			// fill in the values before xMin : unsmoothed.
 			//smoothedTable[0] = 0; // in original version, N0=0. In J&M 1st edition version, N0 = V^N - seen_Ngrams
@@ -279,6 +285,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			// for large counts, we take the real value of the count 
 			//(the word has been seen many times so the count is reliable.)
 			int k = 50; // TODO : tune this parameter, and set it in the constructor
+			if(k>GTtable.length){
+				k = GTtable.length/2;
+			}
 			for(int i=k+1; i<GTtable.length; i++){
 				GTtable[i] = i;
 			}
@@ -321,9 +330,8 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		for (int ord=0; ord<order; ord++){
 			double[] countTable = GTcountTable.get(ord);
 			double[] probaTable = new double[countTable.length];
-			// normalizing factor for a fully GT-smoothed distribution : N + c_max * Nc_max
-			//this is wrong : double normFactor = ngc.NgramVocabulary.get(ord).size() + (countTable.length-1)*smoothedCountOfCountsTable.get(ord)[countTable.length-1];
-			double normFactor = smoothedNgramTokens[ord];
+			//double normFactor = smoothedNgramTokens[ord]; // if you want the whole table to sum up to 1 (including the Nc that were smoothed to a non-zero value, and don't correspond to any word)
+			double normFactor = ngc.NgramTokens[ord]; // if you want the existing words to sum up to 1
 			System.out.println("Number of tokens for "+(ord+1)+"-grams : "+ngc.NgramTokens[ord]);
 			System.out.println("Normalizing factor (number of tokens): "+normFactor);
 			probaTable[0] = smoothedCountOfCountsTable.get(ord)[1] / normFactor; 
@@ -453,5 +461,70 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
         createGTprobaTable();
         System.out.println("\tGT probability table created.");
         
+	}
+	
+	public double estimatorCheckModel(int ord, String distribution){
+		// we need to sum up on all the words of the vocabulary, plus the UNK word.
+		System.out.println("smoothedGoodTuringEstimator: checking "+distribution+" distribution of order "+ord+"...");
+		double checkSum = 0;
+		if (distribution.equals("joint")){
+			HashSet<List<String>> vocab = ngc.NgramVocabulary.get(ord-1);
+			for (List<String> ngram : vocab){
+				checkSum += getNgramJointProbability(ngram);
+		//		System.out.println("Adding "+ngram+" : joint P = "+getNgramJointProbability(ngram));
+			}
+			// add the UNK word
+			List<String> unk = new ArrayList<String>();
+			for (int i=0; i<ord; i++){
+				unk.add("UNK");
+			}
+			checkSum += getNgramJointProbability(unk);
+		//	System.out.println("Adding "+unk+" : joint P = "+getNgramJointProbability(unk));
+		//	System.out.println("(count(unk) = "+ngc.getCount(unk)+")");
+			
+		}else if (distribution.equals("conditional")){
+			// if the order is 1, then the conditional distrib doesn't exist.
+			// we return the unigram joint distribution.
+			if(ord==1){
+				System.out.println("The order is 1 : returning the joint distribution.");
+				return estimatorCheckModel(1,"joint");
+			}
+			// For the conditional distribution, for a given history, we compute the sum over the possible words.
+			// We return the mean over the histories.
+			// All the unseen words are mapped to UNK.
+			HashSet<List<String>> historyVocab = ngc.NgramVocabulary.get(ord-2);
+			HashSet<List<String>> unigramVocab = ngc.NgramVocabulary.get(0);
+			HashSet<List<String>> NgramVocab = ngc.NgramVocabulary.get(ord-1);
+			double sum = 0;
+			checkSum = 0;
+			for (List<String> history : historyVocab){
+				sum = 0;
+			//	System.out.println("History : "+history);
+				for(List<String> unigram : unigramVocab){
+					//build the full ngram
+					List<String> ngram = new ArrayList<String>(history);
+					ngram.add(unigram.get(0));
+					// if the n-gram has been seen, get its conditional probability
+					if (NgramVocab.contains(ngram)){
+						sum += getNgramConditionalProbability(ngram);
+				//		System.out.println("\tngram : "+ngram+" : P("+unigram+"|"+history+") = "+getNgramConditionalProbability(ngram));
+					}
+				}
+				// add the unk unigram
+				List<String> ngram = new ArrayList<String>(history);
+				ngram.add("UNK");
+				sum += getNgramConditionalProbability(ngram);
+				//System.out.println("\tngram : "+ngram+" : P(UNK|"+history+") = "+getNgramConditionalProbability(ngram));
+			//	System.out.println("For history "+history+", the sum is : "+sum);
+				// add to general sum
+				checkSum += sum;
+			}
+			// get average of general sum
+			checkSum = checkSum/historyVocab.size();
+
+		}else{
+			System.out.println("Type of distributino unknown. Sum not computed!");
+		}
+		return checkSum;
 	}
 }
