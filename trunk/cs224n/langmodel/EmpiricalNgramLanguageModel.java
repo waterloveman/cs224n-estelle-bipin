@@ -101,6 +101,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  
 		}
 		System.out.println(sentences.size()+" sentences read, containing "+ngc.totalNgrams+" tokens.");
+		System.out.println("(More precisely : "+ngc.NgramTokens[0]+" unigrams and "+ngc.NgramTokens[1]+" bigrams.)");
 		System.out.print("Total n-grams : ");
 		for (int i=0; i<order; i++){
 			System.out.print(ngc.NgramVocabulary.get(i).size()+" "+(i+1)+"-grams, ");

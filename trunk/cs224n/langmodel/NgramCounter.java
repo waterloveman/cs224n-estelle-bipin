@@ -17,6 +17,7 @@ public class NgramCounter {
 	Integer 	totalNgrams; // number of Ngrams : tokens
 	Set<String>	vocabulary; // list of unigram types
 	Vector<HashSet<List<String>>> NgramVocabulary;//list of Ngram types
+	int[] NgramTokens; // total number of tokens, for each order.
 	//List<HashMap<Integer, HashSet<List<String>>>> invertedTable; 
 	//List<double[]> countOfCountsTable;
 	//List<double[]> smoothedCountOfCountsTable;
@@ -34,7 +35,7 @@ public class NgramCounter {
 			HashSet<List<String>> newset = new HashSet<List<String>>();
 			NgramVocabulary.add(newset);
 		}
-        
+        NgramTokens = new int[order];
 		vocabulary.add("--UNK--");
 	}
   /**
@@ -66,7 +67,8 @@ public class NgramCounter {
 		t.childCount++;		// for final gram
 		
 		totalNgrams++;
-		// insert ngrams of all orders in the vocabulary tables
+		
+		// insert ngrams of all orders in the vocabulary and token tables
 		//System.out.println("inserting : "+ngram.get(0)+" "+ngram.get(1));
 		for (int i=order-1; i>-1; i--){
 		//int i = 0;
@@ -78,6 +80,7 @@ public class NgramCounter {
 			vocab.add(ngram);
 		//	System.out.println("hashset #"+i+" after insertion: "+vocab);
 			NgramVocabulary.add(i,vocab);
+			NgramTokens[i]++;
 	//		System.out.println("hashset #"+i+" after : "+NgramVocabulary.get(i));
 	//		System.out.println("size of total table : "+NgramVocabulary.size());
 			List<String> oldngram = ngram;

@@ -14,6 +14,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	List<double[]> GTcountTable;
 	List<double[]> GTprobaTable;
 	int order;
+	double[] smoothedNgramTokens; // this is the equivalent to the number of tokens, but computed with the smoothed counts of counts.
 	
 	public smoothedGoodTuringEstimator(NgramCounter n, int ord){
 		ngc = n;
@@ -117,7 +118,10 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		// fill in count table
 		for (int ord=0; ord<order; ord++){
 			double[] table = countOfCountsTable.get(ord);
-			table[0] = 0;
+			//table[0] = 0; // original version
+			int V_unigram = ngc.NgramVocabulary.get(0).size(); 
+			table[0] = Math.pow(V_unigram, ord+1) - ngc.NgramVocabulary.get(ord).size(); // J&M first edition version : N0 = number_of_unseen_ngrams = V_ngram - number_of_ngrams_seen
+			System.out.println("N0 for "+(ord+1)+"-grams : "+table[0]);
 			for (Integer count : invertedTable.get(ord).keySet()){
 				table[count] = invertedTable.get(ord).get(count).size();
 			}
@@ -182,6 +186,8 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	public void createSmoothedCountOfCountsTable(){
 		// declare the smoothed table
 		smoothedCountOfCountsTable = new ArrayList<double[]>(order);
+		// declare the smoothed token count table
+		smoothedNgramTokens = new double[order];
 		for (int ord=0; ord<order; ord++){
 			double[] table = countOfCountsTable.get(ord);
 			double[] smoothedTable = new double[table.length];
@@ -190,8 +196,8 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			int xMin = 50; 
 			// TODO : this should be tuned : try a few values with on the hold-out data set.
 			// fill in the values before xMin : unsmoothed.
-			smoothedTable[0] = 0;
-			for (int i=1; i<xMin; i++){
+			//smoothedTable[0] = 0; // in original version, N0=0. In J&M 1st edition version, N0 = V^N - seen_Ngrams
+			for (int i=0; i<xMin; i++){
 				smoothedTable[i] = table[i];
 			}
 			
@@ -235,7 +241,18 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 				cOrig += table[i];
 			}
 			System.out.println("Whole smoothed distribution, scaled, now sums up to : "+cSmooth);
-			System.out.println("Total number of samples in the distribution : "+cOrig);			
+			System.out.println("Total number of samples in the distribution : "+cOrig);	
+			
+			// Compute the new token count
+			// With the original distribution, sum(Nc*c)=Number_of_tokens. 
+			// But with the smoothed distribution, sum(Nc*c) is slightly different. (it doesn't really correspond to any real count.)
+			// We store it to use it for the normalisation of the probability distribution later. 
+			double tokenSum = 0;
+			for (int i=1; i<table.length; i++){
+				tokenSum += smoothedTable[i] * i;
+			}
+		    smoothedNgramTokens[ord] = tokenSum;
+			System.out.println("With the smoothed distrib, the token count is "+tokenSum+" (it should be "+ngc.NgramTokens[ord]+")");
 			
 			// compute the squared error to the real values
 			double squaredError = 0;
@@ -257,24 +274,33 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		for (int ord=0; ord<order; ord++){
 			double[] Nc = smoothedCountOfCountsTable.get(ord);// we use the smoothed Nc table.
 			double[] GTtable = new double[Nc.length];
-			GTtable[0] = 0;
+			//GTtable[0] = 0;
+			GTtable[0] = Nc[1]; // 0*=N1 : this assumes N0=1, we have only one unseen ngram.
 			// for large counts, we take the real value of the count 
 			//(the word has been seen many times so the count is reliable.)
 			int k = 50; // TODO : tune this parameter, and set it in the constructor
-			/*for(int i=k+1; i<GTtable.length; i++){
+			for(int i=k+1; i<GTtable.length; i++){
 				GTtable[i] = i;
 			}
 			// for smaller counts, we use the GT approximation
 			for(int i=1; i<=k; i++){
 				GTtable[i] = ( (i+1)*Nc[i+1]/Nc[i] - i*(k+1)*Nc[k+1]/Nc[1] ) / (1 - (k+1)*Nc[k+1]/Nc[1] ) ;
 			}
-			*/
 			
 			// simpler version : we smooth all the counts.
-			for (int i=1; i<GTtable.length-1; i++){
+			/*for (int i=1; i<GTtable.length-1; i++){
 				GTtable[i] = (i+1)*Nc[i+1]/Nc[i];
 			}
 			GTtable[GTtable.length-1] = GTtable.length-1;//last count is not smoothed.
+			*/
+			
+			// debug : check what the counts sum up to: sum (Nc * c*) = N normally.
+			double checkSum = GTtable[0];//we assume N0=1;
+			for (int i=1; i<GTtable.length; i++){
+				checkSum += Nc[i]*GTtable[i];
+			}
+			System.out.println("The GT counts add up to : "+checkSum);
+			System.out.println("so normalized by "+ngc.NgramTokens[ord]+", we get : "+checkSum/ngc.NgramTokens[ord]);
 			
 			printTableToFile(GTtable, "../GTtable_"+(ord+1)+"-grams.txt", "#\n");
 			// add to the 2d table
@@ -296,10 +322,12 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			double[] countTable = GTcountTable.get(ord);
 			double[] probaTable = new double[countTable.length];
 			// normalizing factor for a fully GT-smoothed distribution : N + c_max * Nc_max
-			double normFactor = ngc.NgramVocabulary.get(ord).size() + (countTable.length-1)*smoothedCountOfCountsTable.get(ord)[countTable.length-1];
-			System.out.println("vocabulary size for "+(ord+1)+"-grams : "+ngc.NgramVocabulary.get(ord).size());
-			System.out.println("Normalizing factor : "+normFactor);
-			probaTable[0] = smoothedCountOfCountsTable.get(ord)[1] / normFactor;
+			//this is wrong : double normFactor = ngc.NgramVocabulary.get(ord).size() + (countTable.length-1)*smoothedCountOfCountsTable.get(ord)[countTable.length-1];
+			double normFactor = smoothedNgramTokens[ord];
+			System.out.println("Number of tokens for "+(ord+1)+"-grams : "+ngc.NgramTokens[ord]);
+			System.out.println("Normalizing factor (number of tokens): "+normFactor);
+			probaTable[0] = smoothedCountOfCountsTable.get(ord)[1] / normFactor; 
+			// P(w:C(w)=0) = N1/N. This assumes N0=1 : only one unseen ngram. This implies 0*=N1.
 			double probaSum = probaTable[0];
 			for (int i=1; i<probaTable.length; i++){
 				probaTable[i] = countTable[i]/normFactor;
