@@ -303,7 +303,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			double probaSum = probaTable[0];
 			for (int i=1; i<probaTable.length; i++){
 				probaTable[i] = countTable[i]/normFactor;
-				probaSum += probaTable[i];
+				probaSum += smoothedCountOfCountsTable.get(ord)[i]*probaTable[i];
 			}
 			// debug : check the probability sums up to 1
 			System.out.println("The smoothed GT proba of order "+(ord+1)+" sums up to "+probaSum);
