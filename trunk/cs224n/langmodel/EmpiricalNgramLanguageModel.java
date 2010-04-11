@@ -134,7 +134,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		System.out.println("Inverted table built. Found "+ngc.invertedTable.size()+" counts.");
 		
 		// debug : print out inverted table
-		for (Integer count : ngc.invertedTable.keySet()){
+		/*for (Integer count : ngc.invertedTable.keySet()){
 			  System.out.println("Count "+count);
 			  HashSet<List<String>> ngramList = ngc.invertedTable.get(count);
 			  Iterator<List<String>> iter = ngramList.iterator();
@@ -151,6 +151,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		System.out.println("Filling the count of counts table for "+ngc.invertedTable.size()+" counts...");
 		ngc.fillCountOfCountsTable();
 		System.out.println("Count of counts table filled.");
+		*/
 		
 		// debug : print out countOfCountsTable table
 		/*for(int i=0; i<ngc.countOfCountsTable.length; i++){
@@ -177,9 +178,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		
 		// check for any zeros : this function returns the index of the smallest zero count
         // if the return is negative, there's a problem. TODO throw a proper error
-		int[] zeroIdx = ngc.checkZerosInCountOfCountsTable();
-        System.out.println("first non zero for unigrams : "+zeroIdx[0]);
-        System.out.println("first non zero for bigrams : "+zeroIdx[1]);
+//		int[] zeroIdx = ngc.checkZerosInCountOfCountsTable();
+//        System.out.println("first non zero for unigrams : "+zeroIdx[0]);
+//        System.out.println("first non zero for bigrams : "+zeroIdx[1]);
         
         // Smooth the count of counts table : fit a power log
         
@@ -191,7 +192,11 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// used in the rest of the functions like
 		// generating-sentences, working out sentence-probabilities etc.
 	
-        estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
+        estimator = new WittenBellEstimator(ngc, order);
+//        WittenBellEstimator wb = new WittenBellEstimator(ngc, order);
+//        wb.checkModel();
+//        System.exit(0);
+//      estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
 //		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
 //		estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);
 //		estimator = new MaximumLikelihoodEstimator(ngc);
@@ -342,6 +347,16 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		return probability;
 	}
 
+	public double checkModel()	{
+		// Choose one of the two methods to
+		// check your model. The conditional-probability
+		// table way is slightly more clunkier, since
+		// it has to take unseen columns into account.
+		
+		//return checkModelUsingJointProbability();
+		return checkModelUsingConditionalProbability();
+	}
+	
 	/**
 	 * Returns the sum of the probabilities of the every ngram
 	 * we might encounter. This should be equal to 1.
@@ -349,7 +364,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 * might encounter, including a special UNK token, which takes care
 	 * of novel words that we might encounter.
 	 */
-	public double checkModel() {
+	private double checkModelUsingJointProbability() {
         
 		double sum = 0.0;
 		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, order);
@@ -366,6 +381,34 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		//
 		*/
 	}
+	
+	/**
+	 * Sums over every conditional probability we can create.
+	 * This should equal the number of tokens we've seen.
+	 * The language-space object returns every possible set of tokens we
+	 * might encounter, including a special UNK token, which takes care
+	 * of novel words that we might encounter.
+	 */
+	private double checkModelUsingConditionalProbability()	{
+		double sum = 0.0;
+		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, order);
+		while (ls.hasMore())	{
+			List<String> ngram = ls.getNext();
+			sum += estimator.getNgramConditionalProbability(ngram);
+		}
+		System.out.println("Sum: " + sum);
+		int nTypes;
+		if (order == 1)	{
+			return sum;
+		}
+		else	{
+			nTypes = ngc.vocabulary.size() - 2;	// we'll won't see UNK and <S> in training
+																// not sure if this is right. 
+			return sum / nTypes;						
+		}
+		
+	}
+	
 	
 	/**
 	 * Returns a random word sampled according to the model.  A simple
