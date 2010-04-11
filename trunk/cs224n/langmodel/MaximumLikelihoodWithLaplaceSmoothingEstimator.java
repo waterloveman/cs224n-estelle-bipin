@@ -2,6 +2,7 @@ package cs224n.langmodel;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 
@@ -11,12 +12,16 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 	private LanguageSpace ls;
 	private int order;
 	private BigInteger langaugeSpaceSize;
+	HashMap<List<String>, Double> conditionalProbabilityMemory;
+	HashMap<List<String>, Double> jointProbabilityMemory;
 	
 	public MaximumLikelihoodWithLaplaceSmoothingEstimator(NgramCounter n, int o){
 		ngc = n;
 		order = o;
 		ls = new LanguageSpace(ngc.vocabulary, order);
 		langaugeSpaceSize = ls.size();
+		conditionalProbabilityMemory = new HashMap<List<String>, Double>(); 
+		jointProbabilityMemory = new HashMap<List<String>, Double>();
 	}
 
 	// -----------------------------------------------------------------------
@@ -28,7 +33,14 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 	 */
 	public double getNgramJointProbability(List<String> ngram){
 		
+		// check if we've seen this before
+		if (jointProbabilityMemory.containsKey(ngram)){
+//			System.out.println("Joint: Seen " + ngram + " before");
+			return jointProbabilityMemory.get(ngram);
+		}
+		
 		int o = ngram.size();
+		double probability;
 
 		// check to see if we've been asked for the
 		// highest order ngram probability
@@ -38,7 +50,7 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 			
 			double numerator	= ngramCount + 1;
 			double denominator	= totalNgrams + langaugeSpaceSize.doubleValue();
-			return numerator / denominator;
+			probability =  numerator / denominator;
 			
 		}
 		else	{
@@ -52,13 +64,23 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 				tmpNgram.add(word);
 				sum += getNgramJointProbability(tmpNgram);
 			}
-			return sum;
+			probability = sum;
 		}
 		
+		jointProbabilityMemory.put(ngram, probability);
+		return probability;
+
 				
 	}
 	
 	public double getNgramConditionalProbability(List<String> ngram) {
+		
+		// check if we've seen this before
+		if (conditionalProbabilityMemory.containsKey(ngram)){
+//			System.out.println("Condi: Seen " + ngram + " before");
+			return conditionalProbabilityMemory.get(ngram);
+		}
+		
 		double probability = 0.0;
 		
 		if (ngram.size() == 1){
@@ -75,6 +97,8 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 				probability =  getNgramJointProbability(ngram) / getNgramJointProbability(prevWords);
 			}
 		}
+		
+		conditionalProbabilityMemory.put(ngram, probability);
 		
 		return probability;
 	}
