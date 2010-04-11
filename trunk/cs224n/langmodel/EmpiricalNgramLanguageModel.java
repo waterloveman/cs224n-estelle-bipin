@@ -100,13 +100,14 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  
 		  
 		}
-		System.out.println(sentences.size()+" sentences read, containing "+ngc.totalNgrams+" tokens.");
+		/*System.out.println(sentences.size()+" sentences read, containing "+ngc.totalNgrams+" tokens.");
 		System.out.println("(More precisely : "+ngc.NgramTokens[0]+" unigrams and "+ngc.NgramTokens[1]+" bigrams.)");
 		System.out.print("Total n-grams : ");
 		for (int i=0; i<order; i++){
 			System.out.print(ngc.NgramVocabulary.get(i).size()+" "+(i+1)+"-grams, ");
 		}
 		System.out.println("tadaaaa!");
+		*/
 		
 		 // debug : print out ngram vocab
 		/*Set<List<String>> vocabUnigram = ngc.NgramVocabulary.get(0);
@@ -133,13 +134,10 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// used in the rest of the functions like
 		// generating-sentences, working out sentence-probabilities etc.
 	
-		estimator = new smoothedGoodTuringEstimator(ngc,order);
-        //estimator = new WittenBellEstimator(ngc, order);
-//        WittenBellEstimator wb = new WittenBellEstimator(ngc, order);
-//        wb.checkModel();
-//        System.exit(0);
+//		estimator = new smoothedGoodTuringEstimator(ngc,order);
+//      estimator = new WittenBellEstimator(ngc, order);
 //      estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
-//		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
+		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
 //		estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);
 //		estimator = new MaximumLikelihoodEstimator(ngc);
 		
@@ -204,6 +202,8 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			List<String> prevWords = getPrevWords(sentence, index);  
 			List<String> ngram = new ArrayList<String>(prevWords);
 			ngram.add(sentence.get(index));
+
+//			System.out.println("Checking prob for ngram: " + ngram);
 			
 			probability = estimator.getNgramConditionalProbability(ngram);
 		}
@@ -273,12 +273,17 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		
 		// replace all words not in the vocabulary with a special token
 		Set<String> vocabulary = ngc.vocabulary;
+		ArrayList<String> modifiedSentence = new ArrayList<String>();
 		for (int i = 0; i < sentence.size(); ++i){
 			String word = sentence.get(i);
 			if (!vocabulary.contains(word)){
-				sentence.add(i, "--UNK--");
+				modifiedSentence.add(i, "--UNK--");
+			}
+			else	{
+				modifiedSentence.add(i, word);
 			}
 		}
+		sentence = modifiedSentence;
 		
 		// find the product of the probabilities of
 		// every word
@@ -337,21 +342,17 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 */
 	private double checkModelUsingConditionalProbability()	{
 		double sum = 0.0;
+		int n = 0;
 		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, order);
 		while (ls.hasMore())	{
 			List<String> ngram = ls.getNext();
 			sum += estimator.getNgramConditionalProbability(ngram);
+			if (estimator.getNgramConditionalProbability(ngram) > 0.00001){
+				++n;
+			}
 		}
-		System.out.println("Sum: " + sum);
-		int nTypes;
-		if (order == 1)	{
-			return sum;
-		}
-		else	{
-			nTypes = ngc.vocabulary.size() - 2;	// we'll won't see UNK and <S> in training
-																// not sure if this is right. 
-			return sum / nTypes;						
-		}
+		
+		return sum / (n / ngc.vocabulary.size());
 		
 	}
 	
