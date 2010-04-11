@@ -76,23 +76,57 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 		return probability;
 	}
 	
-	public double checkModel(){
+	
+	public double estimatorCheckModel(int order, String distribution)	{
+		if ("conditional".equals(distribution))	{
+			return checkModelUsingConditionalProbability(order);
+		}
+		else	{
+			return checkModelUsingJointProbability(order);
+		}
+	}
+	
+	private double checkModelUsingJointProbability(int o) {
+        
 		double sum = 0.0;
-		// total number of seen N-grams (types):
-		double seenNGrams = ngc.NgramVocabulary.size();
-		// total number of unseen N-grams (types):
-		double unseenNGrams = langaugeSpaceSize.doubleValue() - seenNGrams;
-		
-		// probability mass of the seen values :
-		// read the whole table of the NGramCounter :
-		Table t = ngc.table;
-		for (Object w1 : t.keySet()){
-			
+		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, o);
+		while (ls.hasMore())	{
+			List<String> ngram = ls.getNext();
+			sum += getNgramJointProbability(ngram);
 		}
 		
 		return sum;
 		
+		/*
+		// second version : doesn't use all combinations, so goes faster
+		return estimator.checkModel();
+		//
+		*/
 	}
+	
+	/**
+	 * Sums over every conditional probability we can create.
+	 * This should equal the number of tokens we've seen.
+	 * The language-space object returns every possible set of tokens we
+	 * might encounter, including a special UNK token, which takes care
+	 * of novel words that we might encounter.
+	 */
+	private double checkModelUsingConditionalProbability(int o)	{
+		double sum = 0.0;
+		int n = 0;
+		LanguageSpace ls = new LanguageSpace(ngc.vocabulary, o);
+		while (ls.hasMore())	{
+			List<String> ngram = ls.getNext();
+			sum += getNgramConditionalProbability(ngram);
+			if (getNgramConditionalProbability(ngram) > 0.00001){
+				++n;
+			}
+		}
+		
+		return sum / (n / ngc.vocabulary.size());
+		
+	}
+
 	
 }
 
