@@ -109,7 +109,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		System.out.println("tadaaaa!");
 		
 		 // debug : print out ngram vocab
-	/*	Set<List<String>> vocabUnigram = ngc.NgramVocabulary.get(0);
+		/*Set<List<String>> vocabUnigram = ngc.NgramVocabulary.get(0);
 		Set<List<String>> vocabBigram = ngc.NgramVocabulary.get(1);		
 		System.out.println("Unigram vocab :");
 		for (List<String> ngram : vocabUnigram){
@@ -124,8 +124,8 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 				  System.out.print(ngram.get(i)+" ");
 			  }
 			  System.out.println("");
-		}		*/
-
+		}		
+		*/
 		
 		// build an estimator based on the the ngrams
 		// we've seen in training.
@@ -296,7 +296,11 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// it has to take unseen columns into account.
 		
 		//return checkModelUsingJointProbability();
-		return checkModelUsingConditionalProbability();
+		//return checkModelUsingConditionalProbability();
+		int ord = 2; // order of the distribution you want to check
+		//String distribution = "joint"; // type of distribution that you want to check
+		String distribution = "conditional";
+		return estimator.estimatorCheckModel(ord, distribution);
 	}
 	
 	/**
