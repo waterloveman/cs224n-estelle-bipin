@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.Vector;
+import java.io.*;
 
 import cs224n.langmodel.Table;
 
@@ -19,7 +20,8 @@ public class NgramCounter {
 	//HashMap<Integer, List<List<String>>> invertedTable; 
 	List<HashMap<Integer, HashSet<List<String>>>> invertedTable; 
 	List<double[]> countOfCountsTable;
-	double[] smoothedCountOfCountsTable;
+	List<double[]> smoothedCountOfCountsTable;
+	List<double[]> GTcountTable;
 	int order;
 	
 	public NgramCounter(int ord){
@@ -251,9 +253,126 @@ public class NgramCounter {
 		return result;
 	}
 	
+	// this generates files to be plotted, names "Nc_n-gram_plot.txt", with n the order of the ngrams.
+	// Example : the gnuplot commands to print the unigram and bigram files are:
+	// set style line 1 lt 5 lw 10
+	// plot "Nc_1-gram_plot.txt" with imp ls 1 
+	// plot "Nc_2-gram_plot.txt" with imp ls 1
+	// To get a log log plot, use :
+	// set log xy  #use unset log xy to go back to linear plots.
+	public void printCountOfCountsTableToFile(){
+		for (int ord=0; ord<order; ord++){
+			// Create file for each n-gram order
+			String fileName = "../Nc_"+(ord+1)+"-gram_plot.txt";
+			String title = "# table of counts of counts (N_c) for "+(ord+1)+"-grams, unsmoothed\n"; 
+			double[] table = countOfCountsTable.get(ord);
+			printTableToFile(table, fileName, title);
+		}
+	}
+	
+	public void printTableToFile(double[] table, String fileName, String title){
+		try{
+			FileWriter fstream = new FileWriter(fileName);
+			BufferedWriter out = new BufferedWriter(fstream);
+			out.write("#"+title);
+			for (int i=0; i<table.length; i++){
+				out.write(i+"\t"+table[i]+"\n");
+			}
+			out.close();
+		}catch (Exception e){
+			System.out.println("Error : " + e.getMessage());
+		}
+	}
+	
 	public void createSmoothedCountOfCountsTable(){
-		//smoothedCountOfCountsTable = new double[countOfCountsTable.length];
+		// declare the smoothed table
+		smoothedCountOfCountsTable = new ArrayList<double[]>(order);
+		for (int ord=0; ord<order; ord++){
+			double[] table = countOfCountsTable.get(ord);
+			double[] smoothedTable = new double[table.length];
+			
+			// decide the value of xMin
+			int xMin = 500; 
+			// TODO : this should be tuned : try a few values with on the hold-out data set.
+			// fill in the values before xMin : unsmoothed.
+			smoothedTable[0] = 0;
+			for (int i=1; i<xMin; i++){
+				smoothedTable[i] = table[i];
+			}
+			
+			// find the exponent alpha (see wikipedia page :  http://en.wikipedia.org/wiki/Power_law#Estimating_the_exponent_from_empirical_data)			
+			double alphaSum = 0;
+			double totalSamples = 0; // total number of samples drawn from the power law. This is called "n" in the papers.
+			for (int i=xMin; i<table.length; i++){
+				alphaSum += table[i]*Math.log(i/(xMin-0.5)); // we drew the value x=i table[i] times.
+				totalSamples += table[i];
+			}
+			double alpha = 1+ totalSamples/alphaSum;
+			
+			// fill in the smoothed table : not scaled, it estimated a probability distribution and should sum up to 1.
+			// Nc_smooth(x) = ((alpha-1)/xMin) * (x/xMin)^(-alpha)
+			double checkSmoothedSum = 0;
+			for (int i=xMin; i<table.length; i++){
+				smoothedTable[i] = (alpha-1)/xMin*Math.pow(i/((double)xMin),-alpha); // with unnormalized expression in wikipedia
+				checkSmoothedSum += smoothedTable[i];
+			}
+			printTableToFile(smoothedTable, "../Nc_"+(ord+1)+"-gram_plot_smoothed_probaDistrib.txt", "#\n");
+			// check : this should sum up to 1 (roughly, it's a discrete approximation.)
+			System.out.println("Smoothed distribution sums up to : "+checkSmoothedSum);
+			
+			// Scale the smoothed table so that it sums up to totalSamples.
+			// This will imitate the histogram that we would get if we sampled totalSamples times from our probability distribution.
+			double scaledCheckSmoothedSum = 0;
+			for(int i=xMin; i<table.length; i++){
+				smoothedTable[i] = smoothedTable[i]/checkSmoothedSum*totalSamples;
+				scaledCheckSmoothedSum += smoothedTable[i];
+			}
+			System.out.println("Smoothed distribution, scaled, now sums up to : "+scaledCheckSmoothedSum);
+			System.out.println("Total number of samples is : "+totalSamples);
+			printTableToFile(smoothedTable, "../Nc_"+(ord+1)+"-gram_plot_smoothed_scaled.txt", "#\n");
+			
+			// compute the squared error to the real values
+			double squaredError = 0;
+			for (int i=xMin; i<table.length; i++){
+				squaredError += (table[i]-smoothedTable[i])*(table[i]-smoothedTable[i]);
+			}
+			squaredError = squaredError/(table.length-xMin);
+			System.out.println("Squared error of the fit with xMin = "+xMin+": "+squaredError);
+			
+			// add to the 2d table
+			smoothedCountOfCountsTable.add(smoothedTable);
+		}
 		
+		return;
+	}
+	
+	public void createGTcountTable(){
+		GTcountTable = new ArrayList<double[]>(order);
+		for (int ord=0; ord<order; ord++){
+			double[] Nc = smoothedCountOfCountsTable.get(ord);// we use the smoothed Nc table.
+			double[] GTtable = new double[Nc.length];
+			GTtable[0] = 0;
+			// for large counts, we take the real value of the count 
+			//(the word has been seen many times so the count is reliable.)
+			int k = 50; // TODO : tune this parameter, and set it in the constructor
+			for(int i=k+1; i<GTtable.length; i++){
+				GTtable[i] = i;
+			}
+			// for smaller counts, we use the GT approximation
+			for(int i=1; i<=k; i++){
+				GTtable[i] = ( (i+1)*Nc[i+1]/Nc[i] - i*(k+1)*Nc[k+1]/Nc[1] ) / (1 - (k+1)*Nc[k+1]/Nc[1] ) ;
+			}
+			GTcountTable.add(GTtable);
+			printTableToFile(GTtable, "../GTtable_"+(ord+1)+"-grams.txt", "#\n");
+			
+			//debug : look at smoothed counts
+			double[] smoothedGTtable = new double[k+1];
+			for (int i=0; i<k+1; i++){
+				smoothedGTtable[i] = GTtable[i];
+			}
+			printTableToFile(smoothedGTtable, "../GTtable_"+(ord+1)+"-grams_smoothed.txt", "#\n");
+
+		}
 	}
 	
 	public int nZeroCountNgrams(int order)	{
