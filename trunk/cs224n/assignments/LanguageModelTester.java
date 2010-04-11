@@ -256,8 +256,8 @@ public class LanguageModelTester {
 
     // check if the probability distribution of the model sums up properly
     if ("true".equals(options.get("-check"))) {
+        System.err.println("Checking model "+model+"...");
       double modelsum = model.checkModel();
-      System.err.println("Checking model "+model+"...");
       System.err.println("checkModel() returns "+modelsum);
       if (Math.abs(1.0-modelsum) > 1e-6) {
         System.err.println("WARNING: "+model+" does not sum up to one.");
