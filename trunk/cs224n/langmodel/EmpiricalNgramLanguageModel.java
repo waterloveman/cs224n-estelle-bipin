@@ -131,12 +131,13 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// count c -> number of ngram types seen c times
 		System.out.println("Building inverted table...");
 		ngc.invertTable();
-		System.out.println("Inverted table built. Found "+ngc.invertedTable.size()+" counts.");
+		System.out.println("Inverted table built.");
 		
 		// debug : print out inverted table
-		/*for (Integer count : ngc.invertedTable.keySet()){
+		/*System.out.println("Inverted table : unigrams");
+		for (Integer count : ngc.invertedTable.get(0).keySet()){
 			  System.out.println("Count "+count);
-			  HashSet<List<String>> ngramList = ngc.invertedTable.get(count);
+			  HashSet<List<String>> ngramList = ngc.invertedTable.get(0).get(count);
 			  Iterator<List<String>> iter = ngramList.iterator();
 			  while(iter.hasNext())	{
 				  List<String> ngram = iter.next();
@@ -147,11 +148,38 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			  }
 			  System.out.println("");
 		}
+		System.out.println("Inverted table : bigrams");
+		for (Integer count : ngc.invertedTable.get(1).keySet()){
+			  System.out.println("Count "+count);
+			  HashSet<List<String>> ngramList = ngc.invertedTable.get(1).get(count);
+			  Iterator<List<String>> iter = ngramList.iterator();
+			  while(iter.hasNext())	{
+				  List<String> ngram = iter.next();
+				  for (int j=0; j<ngram.size(); j++){
+					  System.out.print(" "+ngram.get(j));
+				  }
+				  System.out.print(", ");
+			  }
+			  System.out.println("");
+		}*/
 		
 		System.out.println("Filling the count of counts table for "+ngc.invertedTable.size()+" counts...");
 		ngc.fillCountOfCountsTable();
 		System.out.println("Count of counts table filled.");
-		*/
+		
+		// debug : check : you should find the same number of n-grams
+		double[] table = ngc.countOfCountsTable.get(0);
+		double sum = 0;
+		for (int i=0; i<table.length; i++){
+			sum += table[i];
+		}
+		System.out.println("Check : We should have "+sum+" unigrams types.");
+		table = ngc.countOfCountsTable.get(1);
+		sum = 0;
+		for (int i=0; i<table.length; i++){
+			sum += table[i];
+		}
+		System.out.println("Check : We should have "+sum+" bigrams types.");	
 		
 		// debug : print out countOfCountsTable table
 		/*for(int i=0; i<ngc.countOfCountsTable.length; i++){
@@ -176,14 +204,34 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		}
 		*/
 		
+		// print the count of counts to a file, for plotting
+		// TODO : put the filename as an argument of the function, it's prettier
+		System.out.println("Plotting countOfCounts to file...");
+		ngc.printCountOfCountsTableToFile();
+		System.out.println("Plotting done.");
+		
+		//debug
+		System.out.println("Bigram with biggest count : "+(ngc.countOfCountsTable.get(1).length-1)+" counts : "+ngc.invertedTable.get(1).get(ngc.countOfCountsTable.get(1).length-1));
+		System.out.println("Uniigram with biggest count : "+(ngc.countOfCountsTable.get(0).length-1)+" counts : "+ngc.invertedTable.get(0).get(ngc.countOfCountsTable.get(0).length-1));
+		
 		// check for any zeros : this function returns the index of the smallest zero count
         // if the return is negative, there's a problem. TODO throw a proper error
-//		int[] zeroIdx = ngc.checkZerosInCountOfCountsTable();
-//        System.out.println("first non zero for unigrams : "+zeroIdx[0]);
-//        System.out.println("first non zero for bigrams : "+zeroIdx[1]);
+		int[] zeroIdx = ngc.checkZerosInCountOfCountsTable();
+        System.out.println("first non zero for unigrams : "+zeroIdx[0]);
+        System.out.println("first non zero for bigrams : "+zeroIdx[1]);
         
         // Smooth the count of counts table : fit a power log
-        
+        // N_0 is still left to be zero (number of bigram types seen 0 times.)
+        // The rest of the distribution is smoothed.
+        System.out.println("Smoothing the counts of counts...");
+        ngc.createSmoothedCountOfCountsTable();
+        System.out.println("Smoothing done.");
+		
+        // Build the new counts table : GTcount[c] is the smoothed count value, c*.
+        System.out.println("Creating GT table...");
+        ngc.createGTcountTable();
+        System.out.println("GT table created.");
+                
 		
 		
 		// build an estimator based on the the ngrams

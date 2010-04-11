@@ -145,7 +145,7 @@ public class NgramCounter {
 			int counter = 0;
 			for(List<String> ngram : vocab){
 				counter ++;
-				if (counter%1000==0){
+				if (counter%10000==0){
 					System.out.println("NgramCounter.invertTable() : Doing ngram type number "+counter+". ("+counter/totalTypes*100+"%)");
 				}
 				int count = (int)getCount(ngram);
