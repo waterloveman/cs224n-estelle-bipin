@@ -15,6 +15,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	List<double[]> GTprobaTable;
 	int order;
 	double[] smoothedNgramTokens; // this is the equivalent to the number of tokens, but computed with the smoothed counts of counts.
+	double[] normFactor; // normalizing factor used for the probability
 	
 	public smoothedGoodTuringEstimator(NgramCounter n, int ord){
 		ngc = n;
@@ -196,7 +197,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			double[] smoothedTable = new double[table.length];
 			
 			// decide the value of xMin
-			int xMin = 50; 
+			int xMin = 10; 
 			if (xMin>table.length){
 				xMin = table.length/2;
 			}
@@ -277,6 +278,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	
 	public void createGTcountTable(){
 		GTcountTable = new ArrayList<double[]>(order);
+		normFactor = new double[order];
 		for (int ord=0; ord<order; ord++){
 			double[] Nc = smoothedCountOfCountsTable.get(ord);// we use the smoothed Nc table.
 			double[] GTtable = new double[Nc.length];
@@ -306,8 +308,11 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			// debug : check what the counts sum up to: sum (Nc * c*) = N normally.
 			double checkSum = GTtable[0];//we assume N0=1;
 			for (int i=1; i<GTtable.length; i++){
-				checkSum += Nc[i]*GTtable[i];
+				if(countOfCountsTable.get(ord)[i] != 0){
+					checkSum += Nc[i]*GTtable[i];
+				}
 			}
+			normFactor[ord] = checkSum;
 			System.out.println("The GT counts add up to : "+checkSum);
 			System.out.println("so normalized by "+ngc.NgramTokens[ord]+", we get : "+checkSum/ngc.NgramTokens[ord]);
 			
@@ -331,15 +336,18 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			double[] countTable = GTcountTable.get(ord);
 			double[] probaTable = new double[countTable.length];
 			//double normFactor = smoothedNgramTokens[ord]; // if you want the whole table to sum up to 1 (including the Nc that were smoothed to a non-zero value, and don't correspond to any word)
-			double normFactor = ngc.NgramTokens[ord]; // if you want the existing words to sum up to 1
+			double normFact = ngc.NgramTokens[ord]; // if you want the existing words to sum up to 1
+			//double normFact = normFactor[ord];
 			System.out.println("Number of tokens for "+(ord+1)+"-grams : "+ngc.NgramTokens[ord]);
-			System.out.println("Normalizing factor (number of tokens): "+normFactor);
-			probaTable[0] = smoothedCountOfCountsTable.get(ord)[1] / normFactor; 
+			System.out.println("Normalizing factor : "+normFact);
+			probaTable[0] = smoothedCountOfCountsTable.get(ord)[1] / normFact; 
 			// P(w:C(w)=0) = N1/N. This assumes N0=1 : only one unseen ngram. This implies 0*=N1.
 			double probaSum = probaTable[0];
 			for (int i=1; i<probaTable.length; i++){
-				probaTable[i] = countTable[i]/normFactor;
-				probaSum += smoothedCountOfCountsTable.get(ord)[i]*probaTable[i];
+				probaTable[i] = countTable[i]/normFact;
+				if (countOfCountsTable.get(ord)[i] != 0){
+					probaSum += smoothedCountOfCountsTable.get(ord)[i]*probaTable[i];
+				}
 			}
 			// debug : check the probability sums up to 1
 			System.out.println("The smoothed GT proba of order "+(ord+1)+" sums up to "+probaSum);
@@ -393,7 +401,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		System.out.println("Count of counts table filled.");
 		
 		// debug : check : you should find the same number of n-grams
-		double[] table = countOfCountsTable.get(0);
+	/*	double[] table = countOfCountsTable.get(0);
 		double sum = 0;
 		for (int i=0; i<table.length; i++){
 			sum += table[i];
@@ -404,7 +412,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		for (int i=0; i<table.length; i++){
 			sum += table[i];
 		}
-		System.out.println("Check : We should have "+sum+" bigrams types.");	
+		System.out.println("Check : We should have "+sum+" bigrams types.");	*/
 		
 		// debug : print out countOfCountsTable table
 		/*for(int i=0; i<ngc.countOfCountsTable.length; i++){
@@ -435,15 +443,16 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		System.out.println("\tPlotting done.");
 		
 		//debug
-		System.out.println("Bigram with biggest count : "+(countOfCountsTable.get(1).length-1)+" counts : "+invertedTable.get(1).get(countOfCountsTable.get(1).length-1));
+	/*	System.out.println("Bigram with biggest count : "+(countOfCountsTable.get(1).length-1)+" counts : "+invertedTable.get(1).get(countOfCountsTable.get(1).length-1));
 		System.out.println("Unigram with biggest count : "+(countOfCountsTable.get(0).length-1)+" counts : "+invertedTable.get(0).get(countOfCountsTable.get(0).length-1));
-		
+		*/
 		// check for any zeros : this function returns the index of the smallest zero count
         // if the return is negative, there's a problem. TODO throw a proper error
 		int[] zeroIdx = checkZerosInCountOfCountsTable();
-        System.out.println("first non zero for unigrams : "+zeroIdx[0]);
+    /*    System.out.println("first non zero for unigrams : "+zeroIdx[0]);
         System.out.println("first non zero for bigrams : "+zeroIdx[1]);
-        
+      */
+		
         // Smooth the count of counts table : fit a power log
         // N_0 is still left to be zero (number of bigram types seen 0 times.)
         // The rest of the distribution is smoothed.
@@ -513,9 +522,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 				// add the unk unigram
 				List<String> ngram = new ArrayList<String>(history);
 				ngram.add("UNK");
-				sum += getNgramConditionalProbability(ngram);
+				//sum += getNgramConditionalProbability(ngram);
 				//System.out.println("\tngram : "+ngram+" : P(UNK|"+history+") = "+getNgramConditionalProbability(ngram));
-			//	System.out.println("For history "+history+", the sum is : "+sum);
+				System.out.println("For history "+history+", the sum is : "+sum);
 				// add to general sum
 				checkSum += sum;
 			}

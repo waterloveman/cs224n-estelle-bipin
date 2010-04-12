@@ -208,15 +208,15 @@ public class LanguageModelTester {
     // set up file locations ...............................................
     String dataPath  = options.get("-data");
     String trainFile = dataPath + "/" + options.get("-train");
-    //String validFile = dataPath + "/" + options.get("-valid");
+    String validFile = dataPath + "/" + options.get("-valid");
     String testFile  = dataPath + "/" + options.get("-test");
     String jumblePath   = dataPath + "/jumble";
 
     // load sentence data ..................................................
     System.out.println("Training data will be read from " + trainFile);
     Collection<List<String>> trainSentences = Sentences.Reader.readSentences(trainFile);
-    // System.out.println("Validation data will be read from " + validFile);
-    // Collection<List<String>> validSentences = Sentences.Reader.readSentences(validFile);
+     System.out.println("Validation data will be read from " + validFile);
+     Collection<List<String>> validSentences = Sentences.Reader.readSentences(validFile);
     System.out.println("Testing data will be read from  " + testFile + "\n");
     Collection<List<String>> testSentences = Sentences.Reader.readSentences(testFile);
 

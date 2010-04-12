@@ -17,7 +17,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	// order of the n-gram.
 	// unigrams have order-1
 	// bigrams have order-2 etc.
-	private int order = 2;
+	private int order = 1;
 	
 	// this will keep track of the counts of 
 	// the ngrams we've seen in training
@@ -101,7 +101,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  
 		}
 		/*System.out.println(sentences.size()+" sentences read, containing "+ngc.totalNgrams+" tokens.");
-		System.out.println("(More precisely : "+ngc.NgramTokens[0]+" unigrams and "+ngc.NgramTokens[1]+" bigrams.)");
+		//debug :
+	//System.out.println("(More precisely : "+ngc.NgramTokens[0]+" unigrams and "+ngc.NgramTokens[1]+" bigrams.)");
+		
 		System.out.print("Total n-grams : ");
 		for (int i=0; i<order; i++){
 			System.out.print(ngc.NgramVocabulary.get(i).size()+" "+(i+1)+"-grams, ");
@@ -134,10 +136,10 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// used in the rest of the functions like
 		// generating-sentences, working out sentence-probabilities etc.
 	
-//		estimator = new smoothedGoodTuringEstimator(ngc,order);
+		estimator = new smoothedGoodTuringEstimator(ngc,order);
 //      estimator = new WittenBellEstimator(ngc, order);
 //      estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
-		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
+//		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
 //		estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);
 //		estimator = new MaximumLikelihoodEstimator(ngc);
 		
@@ -272,7 +274,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		}
 		
 		// replace all words not in the vocabulary with a special token
-		Set<String> vocabulary = ngc.vocabulary;
+	/*	Set<String> vocabulary = ngc.vocabulary;
 		ArrayList<String> modifiedSentence = new ArrayList<String>();
 		for (int i = 0; i < sentence.size(); ++i){
 			String word = sentence.get(i);
@@ -284,6 +286,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			}
 		}
 		sentence = modifiedSentence;
+		*/
 		
 		// find the product of the probabilities of
 		// every word
@@ -302,9 +305,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		
 		//return checkModelUsingJointProbability();
 		//return checkModelUsingConditionalProbability();
-		int ord = 2; // order of the distribution you want to check
-		//String distribution = "joint"; // type of distribution that you want to check
-		String distribution = "conditional";
+		int ord = 1; // order of the distribution you want to check
+		String distribution = "joint"; // type of distribution that you want to check
+		//String distribution = "conditional";
 		return estimator.estimatorCheckModel(ord, distribution);
 	}
 	
@@ -403,6 +406,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	public List<String> generateSentence() {
 
 		List<String> sentence = new ArrayList<String>();
+		for (int i=1; i<order; i++){
+			sentence.add(START);
+		}
 		String word = generateWord(sentence);
 		while (!word.equals(STOP)) {
 		sentence.add(word);
