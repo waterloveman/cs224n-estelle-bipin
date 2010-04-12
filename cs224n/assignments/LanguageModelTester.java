@@ -194,8 +194,9 @@ public class LanguageModelTester {
     options.put("-showguesses",       "false");  // show rebuilt Enron emails?
     options.put("-jumble",       "false");  // run Jumble (Enron) evaluation?
     options.put("-baselines", "true");  // compute WER baselines?
-    options.put("-generate",  "true");  // generate some sentences?
+    options.put("-generate",  "false");  // generate some sentences?
     options.put("-check",     "true");  // check probabilities sum to 1
+    options.put("-estimator", "MaximumLikelihoodWithDeltaSmoothingEstimator");  // estimator
 
     // let command-line options supersede defaults .........................
     options.putAll(CommandLineUtils.simpleCommandLineParser(args));
@@ -241,6 +242,7 @@ public class LanguageModelTester {
       @SuppressWarnings("unchecked")
       Class modelClass = Class.forName(options.get("-model"));
       model = (LanguageModel) modelClass.newInstance();
+      model.initialize(options.get("-estimator"));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -256,8 +258,8 @@ public class LanguageModelTester {
 
     // check if the probability distribution of the model sums up properly
     if ("true".equals(options.get("-check"))) {
-        System.err.println("Checking model "+model+"...");
       double modelsum = model.checkModel();
+      System.err.println("Checking model "+model+"...");
       System.err.println("checkModel() returns "+modelsum);
       if (Math.abs(1.0-modelsum) > 1e-6) {
         System.err.println("WARNING: "+model+" does not sum up to one.");

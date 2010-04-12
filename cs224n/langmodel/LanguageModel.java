@@ -19,5 +19,7 @@ public interface LanguageModel {
   public double checkModel();
 
   public List<String> generateSentence();
+  
+  public void initialize(String estimator);
 
 }

@@ -121,13 +121,19 @@ public class NgramCounter {
 	
 	
 	
-	
+	/*
+	 * #types with zero counts
+	 */
 	public int nZeroCountNgrams(int order)	{
 		return (int)Math.pow(vocabulary.size(), order) - nNonZeroCountNgrams();
 	}
 	
+	/*
+	 * #types with non-zero count
+	 */
 	public int nNonZeroCountNgrams()	{
-		return NgramVocabulary.size();
+		//return vocabulary.size()-2;		// we don't see UNK and </S> as beginners
+		return NgramVocabulary.get(order-1).size();
 	}
 	
 	public static void main(String[] args)	{

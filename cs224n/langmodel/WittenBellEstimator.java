@@ -40,20 +40,27 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 	}
 	
 	public double getNgramConditionalProbability(List<String> ngram) {
+		
 		double probability = 0.0;
 		
+//		System.out.println("ngram: " + ngram + " ngvs " + ngc.NgramVocabulary.size());
 		if (ngram.size() == 1){
 			// no conditioning on previous words
-			int T = ngc.vocabulary.size();
+			int T = ngc.vocabulary.size() - 1;
+			if (T == 0)	T = 1;		// border case.
 			int N = ngc.totalNgrams;
 			int Z = ngc.nZeroCountNgrams(1);
+			
+//			System.out.print("ngram: " + ngram + "\n\tT: " + T + "\n\tN: " + N + "\n\tZ: " + Z + "\n\t");
 			
 			int ngramCount = ngc.getCount(ngram);
 			if (ngramCount == 0)	{
 				probability = (double)T / (Z * (N+T));
+//				System.out.println(probability);
 			}
 			else	{
 				probability = (double)ngramCount / (N+T);
+//				System.out.println(probability);
 			}
 		}
 		else	{
@@ -65,6 +72,7 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 				prevWords.remove(ngram.size()-1); // remove last word
 	 
 				int T = nTypesFollow(prevWords);
+				if (T == 0)	T = 1;		// border case.
 				int N = nTokensFollow(prevWords);
 				int Z = nZeroCountTypesFollow(prevWords);
 				
@@ -146,12 +154,13 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 	
 	
 	public double estimatorCheckModel(int order, String distribution)	{
-		if ("conditional".equals(distribution))	{
-			return checkModelUsingConditionalProbability(order);
-		}
-		else	{
-			return checkModelUsingJointProbability(order);
-		}
+		return checkModelUsingConditionalProbability(order);
+//		if ("conditional".equals(distribution))	{
+//			return checkModelUsingConditionalProbability(order);
+//		}
+//		else	{
+//			return checkModelUsingJointProbability(order);
+//		}
 	}
 	
 	private double checkModelUsingJointProbability(int o) {
@@ -164,12 +173,6 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 		}
 		
 		return sum;
-		
-		/*
-		// second version : doesn't use all combinations, so goes faster
-		return estimator.checkModel();
-		//
-		*/
 	}
 	
 	/**

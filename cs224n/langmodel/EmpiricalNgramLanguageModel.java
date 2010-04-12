@@ -30,6 +30,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	private static final String STOP = "</S>";
 	private static final String START = "<S>";
 	
+	private String estimatorName = "";
 
 
 	// -----------------------------------------------------------------------
@@ -39,6 +40,11 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 */
 	public EmpiricalNgramLanguageModel() {
 		ngc = new NgramCounter(order);
+	
+	}
+	
+	public void initialize(String estimator){
+		estimatorName = estimator;
 	}
 
 	/**
@@ -47,8 +53,9 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 * frequencies of all words (including the stop token) over the whole
 	 * collection of sentences are compiled.
 	 */
-	public EmpiricalNgramLanguageModel(Collection<List<String>> sentences) {
+	public EmpiricalNgramLanguageModel(Collection<List<String>> sentences, String estimator) {
 		this();
+		initialize(estimator);
 		train(sentences);
 	}
 
@@ -135,13 +142,34 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// create your own estimator here. this will be 
 		// used in the rest of the functions like
 		// generating-sentences, working out sentence-probabilities etc.
-	
-		estimator = new smoothedGoodTuringEstimator(ngc,order);
-//      estimator = new WittenBellEstimator(ngc, order);
-//      estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
-//		estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
-//		estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);
-//		estimator = new MaximumLikelihoodEstimator(ngc);
+		if ("DeletedInterpolationEstimator".equals(estimatorName))	{
+			estimator = new DeletedInterpolationEstimator(ngc, new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001));
+		}
+		else if ("smoothedGoodTuring".equals(estimatorName))	{
+			estimator = new smoothedGoodTuringEstimator(ngc,order);
+		}
+		else if ("WittenBell".equals(estimatorName))	{
+			estimator = new WittenBellEstimator(ngc, order);
+			WittenBellEstimator w = new WittenBellEstimator(ngc, order);
+			w.checkModel();
+			System.exit(0);
+		}
+		else if ("AbsoluteDiscounting".equals(estimatorName))	{
+			estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
+		}
+		else if ("MaximumLikelihoodWithDeltaSmoothingEstimator".equals(estimatorName))	{
+			estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
+		}
+		else if ("MaximumLikelihoodWithLaplaceSmoothingEstimator".equals(estimatorName))	{
+			estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);
+		}
+		else if ("MaximumLikelihoodEstimator".equals(estimatorName))	{ 
+			estimator = new MaximumLikelihoodEstimator(ngc);
+		}
+		else	{
+			System.err.println("Unknown estimator requested");
+			System.exit(-1);
+		}
 		
 	}
 	
@@ -204,9 +232,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			List<String> prevWords = getPrevWords(sentence, index);  
 			List<String> ngram = new ArrayList<String>(prevWords);
 			ngram.add(sentence.get(index));
-
-//			System.out.println("Checking prob for ngram: " + ngram);
-			
+						
 			probability = estimator.getNgramConditionalProbability(ngram);
 		}
 		return probability;
@@ -260,6 +286,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 
 	// -----------------------------------------------------------------------
 
+	static int ns = 0;
 	/**
 	 * Returns the probability, according to the model, of the specified
 	 * sentence.  This is the product of the probabilities of each word in
@@ -290,6 +317,8 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		
 		// find the product of the probabilities of
 		// every word
+		++ns;
+//		System.out.println("Checking getSentence for sentence-" + ns + ": " + sentence);
 		double probability = 1.0;
 		for (int index = 0; index < stoppedSentence.size(); index++) {
 			probability *= getWordProbability(stoppedSentence, index);
@@ -308,7 +337,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		int ord = 1; // order of the distribution you want to check
 		String distribution = "joint"; // type of distribution that you want to check
 		//String distribution = "conditional";
-		return estimator.estimatorCheckModel(ord, distribution);
+		return estimator.estimatorCheckModel(order, distribution);
 	}
 	
 	/**
