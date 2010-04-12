@@ -2,7 +2,10 @@ package cs224n.langmodel;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbabilityEstimator	{
 	
@@ -11,6 +14,8 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 	private LanguageSpace ls;
 	private int order;
 	private BigInteger langaugeSpaceSize;
+	HashMap<List<String>, Double> conditionalProbabilityMemory;
+	HashMap<List<String>, Double> jointProbabilityMemory;
 	
 	
 	public MaximumLikelihoodWithDeltaSmoothingEstimator(NgramCounter n, int o, double d){
@@ -19,11 +24,19 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 		delta = d;
 		ls = new LanguageSpace(ngc.vocabulary, order);
 		langaugeSpaceSize = ls.size();
+		conditionalProbabilityMemory = new HashMap<List<String>, Double>(); 
+		jointProbabilityMemory = new HashMap<List<String>, Double>();
 	}
 	
 	public double getNgramJointProbability(List<String> ngram){
 		
+		// check if we've seen this before
+		if (jointProbabilityMemory.containsKey(ngram)){
+			return jointProbabilityMemory.get(ngram);
+		}
+		
 		int o = ngram.size();
+		double probability;
 		
 		// check to see if we've been asked for the
 		// highest order ngram probability
@@ -35,7 +48,7 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 			double numerator 	= ngramCount + delta;
 			double denominator 	= totalNgrams + langaugeSpaceSize.doubleValue() * delta;  
 			//double denominator = n_1gramCount + langaugeSpaceSize.doubleValue() * delta;
-			return numerator / denominator;
+			probability =  numerator / denominator;
 			
 		}
 		else	{ 
@@ -43,19 +56,57 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 			// we can't just use the lower-order counts
 			// because each of the higher-order counts 
 			// have been smoothed
+			
+			// first, an optimization:
+			// find out all the words that really do follow
+			// this ngram in the training
+			// these are the only ones which are non-zero
+			// and have to be calculated in the sum.
+			// we add the remaining zero-smoothed sums
+			// in one shot later
+			Set<String> localVocabulary = null;
+			Table<String, Table> t = ngc.table;
+			for (String word : ngram)	{
+				if (!t.containsKey(word)){
+					localVocabulary = new HashSet<String>();	// empty
+					break;
+				}
+				t = t.get(word);
+				localVocabulary = t.hash.keySet(); 
+			}
+			
+			
 			double sum = 0.0;
-			for (String word : ngc.vocabulary)	{
+			for (String word : localVocabulary)	{
 				List<String> tmpNgram = new ArrayList<String>(ngram);
 				tmpNgram.add(word);
 				sum += getNgramJointProbability(tmpNgram);
 			}
-			return sum;
+			
+			// ok, now for the unseen words the follow
+			// we simply find the probability for one of them,
+			// and multiply by the appropriate number of times.
+			double unseenProbability;
+			List<String> tmpNgram = new ArrayList<String>(ngram);
+			tmpNgram.add("--UNK--");
+			unseenProbability = getNgramJointProbability(tmpNgram);
+			int nUnseens = ngc.vocabulary.size() - localVocabulary.size();
+			sum += (nUnseens * unseenProbability);
+			probability = sum;
 		}
-
+		
+		jointProbabilityMemory.put(ngram, probability);
+		return probability;
 		
 	}
 	
 	public double getNgramConditionalProbability(List<String> ngram) {
+		
+		// check if we've seen this before
+		if (conditionalProbabilityMemory.containsKey(ngram)){
+			return conditionalProbabilityMemory.get(ngram);
+		}
+		
 		double probability = 0.0;
 		
 		if (ngram.size() == 1){
@@ -72,6 +123,8 @@ public class MaximumLikelihoodWithDeltaSmoothingEstimator implements NgramProbab
 				probability =  getNgramJointProbability(ngram) / getNgramJointProbability(prevWords);
 			}
 		}
+		
+		conditionalProbabilityMemory.put(ngram, probability);
 		
 		return probability;
 	}

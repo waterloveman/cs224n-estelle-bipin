@@ -3,7 +3,9 @@ package cs224n.langmodel;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProbabilityEstimator	{
@@ -35,7 +37,6 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 		
 		// check if we've seen this before
 		if (jointProbabilityMemory.containsKey(ngram)){
-//			System.out.println("Joint: Seen " + ngram + " before");
 			return jointProbabilityMemory.get(ngram);
 		}
 		
@@ -58,12 +59,43 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 			// we can't just use the lower-order counts
 			// because each of the higher-order counts 
 			// have been smoothed
+			
+			// first, an optimization:
+			// find out all the words that really do follow
+			// this ngram in the training
+			// these are the only ones which are non-zero
+			// and have to be calculated in the sum.
+			// we add the remaining zero-smoothed sums
+			// in one shot later
+			Set<String> localVocabulary = null;
+			Table<String, Table> t = ngc.table;
+			for (String word : ngram)	{
+				if (!t.containsKey(word)){
+					localVocabulary = new HashSet<String>();	// empty
+					break;
+				}
+				t = t.get(word);
+				localVocabulary = t.hash.keySet(); 
+			}
+			
+			
 			double sum = 0.0;
-			for (String word : ngc.vocabulary)	{
+			for (String word : localVocabulary)	{
 				List<String> tmpNgram = new ArrayList<String>(ngram);
 				tmpNgram.add(word);
 				sum += getNgramJointProbability(tmpNgram);
 			}
+			
+			// ok, now for the unseen words the follow
+			// we simply find the probability for one of them,
+			// and multiply by the appropriate number of times.
+			double unseenProbability;
+			List<String> tmpNgram = new ArrayList<String>(ngram);
+			tmpNgram.add("--UNK--");
+			unseenProbability = getNgramJointProbability(tmpNgram);
+			int nUnseens = ngc.vocabulary.size() - localVocabulary.size();
+			sum += (nUnseens * unseenProbability);
+			
 			probability = sum;
 		}
 		
@@ -77,7 +109,6 @@ public class MaximumLikelihoodWithLaplaceSmoothingEstimator implements NgramProb
 		
 		// check if we've seen this before
 		if (conditionalProbabilityMemory.containsKey(ngram)){
-//			System.out.println("Condi: Seen " + ngram + " before");
 			return conditionalProbabilityMemory.get(ngram);
 		}
 		

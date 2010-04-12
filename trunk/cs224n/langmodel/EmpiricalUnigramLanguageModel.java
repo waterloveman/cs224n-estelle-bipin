@@ -30,6 +30,10 @@ public class EmpiricalUnigramLanguageModel implements LanguageModel {
     wordCounter = new Counter<String>();
     total = Double.NaN;
   }
+  
+  public void initialize(String estimator){
+	  
+  }
 
   /**
    * Constructs a unigram language model from a collection of sentences.  A
