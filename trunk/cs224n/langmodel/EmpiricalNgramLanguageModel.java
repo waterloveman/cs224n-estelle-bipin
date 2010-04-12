@@ -150,9 +150,6 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		}
 		else if ("WittenBell".equals(estimatorName))	{
 			estimator = new WittenBellEstimator(ngc, order);
-			WittenBellEstimator w = new WittenBellEstimator(ngc, order);
-			w.checkModel();
-			System.exit(0);
 		}
 		else if ("AbsoluteDiscounting".equals(estimatorName))	{
 			estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
