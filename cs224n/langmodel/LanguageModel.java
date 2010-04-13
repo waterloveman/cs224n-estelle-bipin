@@ -20,6 +20,6 @@ public interface LanguageModel {
 
   public List<String> generateSentence();
   
-  public void initialize(String estimator);
+  public void initialize(String estimator, int order);
 
 }

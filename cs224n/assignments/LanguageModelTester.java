@@ -187,7 +187,7 @@ public class LanguageModelTester {
     Map<String, String> options = new HashMap<String, String>();
     options.put("-data",      "/afs/ir/class/cs224n/pa1/data");
     options.put("-train",     "europarl-train.sent.txt");
-    options.put("-valid",     "europarl-valid.sent.txt");
+    options.put("-valid",     "europarl-validate.sent.txt");
     options.put("-test",      "europarl-test.sent.txt");
 //    options.put("-model",     "cs224n.langmodel.EmpiricalUnigramLanguageModel");
     options.put("-model",     "cs224n.langmodel.EmpiricalNgramLanguageModel");
@@ -197,7 +197,9 @@ public class LanguageModelTester {
     options.put("-generate",  "false");  // generate some sentences?
     options.put("-check",     "true");  // check probabilities sum to 1
     options.put("-estimator", "MaximumLikelihoodWithDeltaSmoothingEstimator");  // estimator
+    options.put("-order", "2");  // estimator
 
+    
     // let command-line options supersede defaults .........................
     options.putAll(CommandLineUtils.simpleCommandLineParser(args));
     System.out.println("LanguageModelTester options:");
@@ -242,7 +244,7 @@ public class LanguageModelTester {
       @SuppressWarnings("unchecked")
       Class modelClass = Class.forName(options.get("-model"));
       model = (LanguageModel) modelClass.newInstance();
-      model.initialize(options.get("-estimator"));
+      model.initialize(options.get("-estimator"), Integer.parseInt(options.get("-order")));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

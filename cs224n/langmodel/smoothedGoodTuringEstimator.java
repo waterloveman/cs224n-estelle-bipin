@@ -1,9 +1,12 @@
 package cs224n.langmodel;
 
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.*;
 import java.io.*;
+import cs224n.assignments.*;
+import cs224n.util.*;
 
 public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	
@@ -16,11 +19,32 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 	int order;
 	double[] smoothedNgramTokens; // this is the equivalent to the number of tokens, but computed with the smoothed counts of counts.
 	double[] normFactor; // normalizing factor used for the probability
+	Collection<List<String>> validSentences;
+	HashMap<String, int[]> unkCounts;
+	HashMap<List<String>, Double> unkWeights;
+	HashMap<List<String>, Double> unkProbability;
+		
+	private static final String STOP = "</S>";
+	private static final String START = "<S>";
+	private static final String UNK = "--UNK--";
+	
+	public smoothedGoodTuringEstimator(NgramCounter n, int ord, Collection<List<String>> sentences){
+		ngc = n;
+		order = ord;
+		validSentences = sentences;
+		//trainEstimator();// this builds all the different tables
+	}
 	
 	public smoothedGoodTuringEstimator(NgramCounter n, int ord){
 		ngc = n;
 		order = ord;
-		trainEstimator();// this builds all the different tables
+		String validFile = "../data/europarl-validate.sent.txt";
+		try{
+			validSentences = Sentences.Reader.readSentences(validFile);
+		}catch (Exception e){
+			System.out.println("Error : "+e.getMessage());
+		}
+		trainEstimator(10, 70);// this builds all the different tables
 	}
 	
 	// -----------------------------------------------------------------------
@@ -69,6 +93,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 
 	public void invertTable(){
 		invertedTable = new ArrayList<HashMap<Integer, HashSet<List<String>>>>();
+		System.out.println("Inverted table : order is "+order);
 		for(int ord = 0; ord<order; ord++){
 			System.out.println("NgramCounter.invertTable() : doing "+(ord+1)+"-grams...");
 			HashSet<List<String>> vocab = ngc.NgramVocabulary.get(ord);
@@ -187,7 +212,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		}
 	}
 	
-	public void createSmoothedCountOfCountsTable(){
+	//public void 
+	
+	public void createSmoothedCountOfCountsTable(int xMinValue){
 		// declare the smoothed table
 		smoothedCountOfCountsTable = new ArrayList<double[]>(order);
 		// declare the smoothed token count table
@@ -197,7 +224,8 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			double[] smoothedTable = new double[table.length];
 			
 			// decide the value of xMin
-			int xMin = 10; 
+			int xMin = xMinValue; 
+			System.out.println("Training estimator with xMin = "+xMin);
 			if (xMin>table.length){
 				xMin = table.length/2;
 			}
@@ -256,7 +284,9 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			// We store it to use it for the normalisation of the probability distribution later. 
 			double tokenSum = 0;
 			for (int i=1; i<table.length; i++){
-				tokenSum += smoothedTable[i] * i;
+				if (table[i]!=0){
+					tokenSum += smoothedTable[i] * i;
+				}
 			}
 		    smoothedNgramTokens[ord] = tokenSum;
 			System.out.println("With the smoothed distrib, the token count is "+tokenSum+" (it should be "+ngc.NgramTokens[ord]+")");
@@ -276,7 +306,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		return;
 	}
 	
-	public void createGTcountTable(){
+	public void createGTcountTable(int kValue){
 		GTcountTable = new ArrayList<double[]>(order);
 		normFactor = new double[order];
 		for (int ord=0; ord<order; ord++){
@@ -286,7 +316,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			GTtable[0] = Nc[1]; // 0*=N1 : this assumes N0=1, we have only one unseen ngram.
 			// for large counts, we take the real value of the count 
 			//(the word has been seen many times so the count is reliable.)
-			int k = 50; // TODO : tune this parameter, and set it in the constructor
+			int k = kValue; 
 			if(k>GTtable.length){
 				k = GTtable.length/2;
 			}
@@ -335,7 +365,7 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 		for (int ord=0; ord<order; ord++){
 			double[] countTable = GTcountTable.get(ord);
 			double[] probaTable = new double[countTable.length];
-			//double normFactor = smoothedNgramTokens[ord]; // if you want the whole table to sum up to 1 (including the Nc that were smoothed to a non-zero value, and don't correspond to any word)
+			//double normFact = smoothedNgramTokens[ord]; // if you want the whole table to sum up to 1 (including the Nc that were smoothed to a non-zero value, and don't correspond to any word)
 			double normFact = ngc.NgramTokens[ord]; // if you want the existing words to sum up to 1
 			//double normFact = normFactor[ord];
 			System.out.println("Number of tokens for "+(ord+1)+"-grams : "+ngc.NgramTokens[ord]);
@@ -346,17 +376,24 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
 			for (int i=1; i<probaTable.length; i++){
 				probaTable[i] = countTable[i]/normFact;
 				if (countOfCountsTable.get(ord)[i] != 0){
-					probaSum += smoothedCountOfCountsTable.get(ord)[i]*probaTable[i];
+					probaSum += countOfCountsTable.get(ord)[i]*probaTable[i]; 
+					// Note : we use the unsmoothed Nc here, because is reality we will call the porbability for the real words. 
 				}
 			}
 			// debug : check the probability sums up to 1
 			System.out.println("The smoothed GT proba of order "+(ord+1)+" sums up to "+probaSum);
+			
+			// renormalization :
+			for(int i=0; i<probaTable.length; i++){
+				probaTable[i] = probaTable[i]/probaSum;
+			}
+			
 			// add to 2d table
 			GTprobaTable.add(probaTable);
 		}
 	}
 	
-	public void trainEstimator(){
+	public void trainEstimator(int xMinValue, int kValue){
 
 		// build the inverted table : 
 		// count c -> list of ngrams seen c times
@@ -457,12 +494,12 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
         // N_0 is still left to be zero (number of bigram types seen 0 times.)
         // The rest of the distribution is smoothed.
         System.out.println("Smoothing the counts of counts...");
-        createSmoothedCountOfCountsTable();
+        createSmoothedCountOfCountsTable(xMinValue);
         System.out.println("\tSmoothing done.");
 		
         // Build the new counts table : GTcount[c] is the smoothed count value, c*.
         System.out.println("Creating GT table...");
-        createGTcountTable();
+        createGTcountTable(kValue);
         System.out.println("\tGT table created.");
         
         // Build the GT probability table
@@ -470,6 +507,167 @@ public class smoothedGoodTuringEstimator implements NgramProbabilityEstimator {
         createGTprobaTable();
         System.out.println("\tGT probability table created.");
         
+        // if the order is 2, then we need to use the validation data to count (word UNK), (UNK word) and (UNK UNK).
+        if (order == 2){
+        	System.out.println("ORDER 2 : training the complicated hacky model");
+        	int totalUnkCount = countUnksInValidation();
+            
+            // debug : print the unkCounts table
+            /*for (String word : unkCounts.keySet()){
+            	if(!word.equals("--UNK--")){
+            		if (unkCounts.get(word)[0]>0 || unkCounts.get(word)[1]>0){
+            			//System.out.println("C("+word+" UNK) = "+unkCounts.get(word)[0]+", C(UNK "+word+") = "+unkCounts.get(word)[1]);
+            		}
+            	}
+            }
+            System.out.println("C(UNK UNK) = "+unkCounts.get("--UNK--")[0]);
+            */
+        	
+        	// compute a delta smoothed probability for the unknown bigrams
+        	// This will be used as weights for splitting the unknown probability mass between unknown bigrams.
+        	computeUnkWeights(totalUnkCount);
+        	
+        	//Multiply this probability by the leftover probability weight : 
+        	// P(UNK_bigram) = GTprobaTable.get(1)[0];
+        	computeUnkProbability();
+        	
+        	// check if P(UNK word) < P(UNK), P(word UNK)<P(word), P(UNK UNK)<P(UNK)
+        	boolean good = true;
+        	int badCounter = 0;
+        	for (List<String> bigram : unkProbability.keySet()){
+        		List<String> unigram = new ArrayList<String>();
+        		unigram.add(bigram.get(0));
+        		if (unkProbability.get(bigram) < getNgramJointProbability(unigram)){
+        		//	System.out.println("Not good : P("+bigram+")="+unkProbability.get(bigram)+"  <  P("+bigram.get(0)+")="+getNgramJointProbability(unigram));
+        			good = false;
+        			badCounter++;
+        		}
+        	}
+        	if (good){
+        		System.out.println("Piece of luck! The bigram distribution holds!!");
+        	}else{
+        		System.out.println("The conditional distribution won't work.... "+badCounter+" out of "+unkProbability.size()+" won't work.");
+        	}
+
+        	
+        }
+
+	}
+	
+	public void computeUnkProbability(){
+		unkProbability = new HashMap<List<String>, Double>();
+		double unkProbaMass = GTprobaTable.get(1)[0];
+		for (List<String> bigram : unkWeights.keySet()){
+			unkProbability.put(bigram, unkWeights.get(bigram)* unkProbaMass);
+		}
+		
+		// check this sums up to unkProbaMass
+		double checkSum = 0;
+		for(List<String> bigram : unkProbability.keySet()){
+			checkSum += unkProbability.get(bigram);
+		}
+    	if (Math.abs(checkSum-unkProbaMass) < 0.000001){
+    		System.out.println("GOOD !! Unknown distribution sums up to "+checkSum+" (exact  value : "+unkProbaMass+")");
+    	}else{
+    		System.out.println("BAAAAAD !! Unknown distribution sums up to "+checkSum+", it should sum up to : "+unkProbaMass);
+    	}
+		
+	}
+	
+	public void computeUnkWeights(int totalUnkCount){
+//		 compute the delta-smoothed probability.
+    	double delta = 0.01;
+    	int vSize = unkCounts.size()*2 -1;
+    	
+    	unkWeights = new HashMap<List<String>, Double>();
+    	double proba;
+    	System.out.println("TotalUnkCount : "+totalUnkCount);
+    	for (String word : unkCounts.keySet()){
+    		if(!word.equals(UNK)){
+    			// (word UNK)
+    			List<String> word_UNK = new ArrayList<String>();
+    			word_UNK.add(word);
+    			word_UNK.add("--UNK--");
+    			proba = (unkCounts.get(word)[0] + delta )/ (totalUnkCount + delta*vSize);
+    			if (proba>0.01){
+    				System.out.println("Big Proba : "+proba+" for "+word_UNK);
+    			}
+    			unkWeights.put(word_UNK, proba);
+    			// (UNK word)
+    			List<String> UNK_word = new ArrayList<String>();
+    			UNK_word.add("--UNK--");
+    			UNK_word.add(word);
+    			proba = (unkCounts.get(word)[1] + delta )/ (totalUnkCount + delta*vSize);
+    			if (proba>0.01){
+    				System.out.println("Big Proba : "+proba+" for "+UNK_word);
+    			}
+    			unkWeights.put(UNK_word, proba);
+    		}
+    	}
+    	// (UNK UNK)
+		List<String> UNK_UNK = new ArrayList<String>();
+		UNK_UNK.add("--UNK--");
+		UNK_UNK.add("--UNK--");
+		proba = (unkCounts.get("--UNK--")[0] + delta )/ (totalUnkCount + delta*vSize);
+		if (proba>0.01){
+			System.out.println("Big Proba : "+proba+" for "+UNK_UNK);
+		}
+		unkWeights.put(UNK_UNK, proba);
+		
+    	// check proba :
+		double checkSum = 0;
+    	for (List<String> bigram : unkWeights.keySet()){
+    		checkSum += unkWeights.get(bigram);
+    	}
+    	if (Math.abs(checkSum-1) < 0.000001){
+    		System.out.println("GOOD !! Unknown distribution sums up to "+checkSum+".");
+    	}else{
+    		System.out.println("BAAAAAD !! Unknown distribution sums up to "+checkSum+".");
+    	}
+
+	}
+	
+	public int countUnksInValidation(){
+		int unkCounter = 0;
+		unkCounts = new HashMap<String, int[]>();
+		for (List<String> ngram : ngc.NgramVocabulary.get(0)){
+			String word = ngram.get(0);
+			unkCounts.put(word,new int[2]); // the first value will be C(word UNK), the second C(UNK word)
+		}
+		unkCounts.put("--UNK--",new int[1]); // this will be C(UNK UNK)
+		
+		// for each sentence in the validation set :
+		for (List<String> sentence : validSentences){
+//			 add the START and STOP tokens to the sentences 
+			sentence.add(STOP);
+			sentence.add(0,START); // only one START, we are in a bigram model
+			
+			// look for UNK words
+			for (int i = 1; i < sentence.size()-1; ++i){
+				String word = sentence.get(i);
+				if (!unkCounts.containsKey(word)){
+					String wBefore = sentence.get(i-1);
+					String wAfter = sentence.get(i+1);
+					//System.out.println("found : "+wBefore+" "+word+"(UNK) "+wAfter);
+					if(unkCounts.containsKey(wBefore)){
+						unkCounts.get(wBefore)[0]++;// (word UNK)
+						unkCounter++;
+					}else{// (UNK UNK)
+						unkCounts.get("--UNK--")[0]++;
+						unkCounter++;
+						System.out.println("Two UNKS in a row : "+wBefore+" "+word);
+					}
+					if (unkCounts.containsKey(wAfter)){
+						unkCounts.get(wAfter)[1]++; // (UNK word)
+						unkCounter++;
+					}else{
+						// Nothing, we don't want to count the (UNK UNK) twice!
+					}
+				}
+			}
+
+		}
+		return unkCounter;
 	}
 	
 	public double estimatorCheckModel(int ord, String distribution){

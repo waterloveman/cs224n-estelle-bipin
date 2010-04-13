@@ -17,7 +17,8 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	// order of the n-gram.
 	// unigrams have order-1
 	// bigrams have order-2 etc.
-	private int order = 2;
+	private int order;
+
 	
 	// this will keep track of the counts of 
 	// the ngrams we've seen in training
@@ -45,7 +46,16 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	
 	public void initialize(String estimator){
 		estimatorName = estimator;
+		order = 2;
 	}
+	
+	public void initialize(String estimator, int ord){
+		estimatorName = estimator;
+		order = ord;
+		System.out.println("Initializing model of order "+order);
+	}
+	
+
 
 	/**
 	 * Constructs a ngram language model from a collection of sentences.  A
@@ -53,13 +63,18 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	 * frequencies of all words (including the stop token) over the whole
 	 * collection of sentences are compiled.
 	 */
-	public EmpiricalNgramLanguageModel(Collection<List<String>> sentences, String estimator) {
+	public EmpiricalNgramLanguageModel(Collection<List<String>> sentences, Collection<List<String>> validSentences, String estimator) {
 		this();
 		initialize(estimator);
 		train(sentences);
 	}
+  
+	
+	public EmpiricalNgramLanguageModel(Collection<List<String>> sentences, Collection<List<String>> validSentences) {
+		this();
 
-
+	}
+	
 	// -----------------------------------------------------------------------
 
 	/**
