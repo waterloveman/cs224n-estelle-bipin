@@ -50,6 +50,7 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 			if (T == 0)	T = 1;		// border case.
 			int N = ngc.totalNgrams;
 			int Z = ngc.nZeroCountNgrams(1);
+			if (Z == 0)				{ Z = 1;		}
 			
 //			System.out.print("ngram: " + ngram + "\n\tT: " + T + "\n\tN: " + N + "\n\tZ: " + Z + "\n\t");
 			
@@ -75,6 +76,7 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 				if (T == 0)	T = 1;		// border case.
 				int N = nTokensFollow(prevWords);
 				int Z = nZeroCountTypesFollow(prevWords);
+				if (Z == 0)				{ Z = 1;		}
 				
 //				System.out.println("T: " + T + "\nZ: " + Z + "\nN: " + N);
 				
@@ -95,6 +97,7 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 				
 //				System.out.println(ngramCount + "\n" + prevWordsCount + "\n" + T);
 				probability = (double)ngramCount / (prevWordsCount+T);
+
 			}
 			
 		}
@@ -189,11 +192,12 @@ public class WittenBellEstimator implements NgramProbabilityEstimator {
 		while (ls.hasMore())	{
 			List<String> ngram = ls.getNext();
 			sum += getNgramConditionalProbability(ngram);
-			if (getNgramConditionalProbability(ngram) > 0.00001){
+			if (getNgramConditionalProbability(ngram) > 0){
 				++n;
 			}
 		}
-		
+
+
 		return sum / (n / ngc.vocabulary.size());
 		
 	}
