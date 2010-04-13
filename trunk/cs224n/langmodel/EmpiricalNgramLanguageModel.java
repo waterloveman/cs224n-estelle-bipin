@@ -17,7 +17,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 	// order of the n-gram.
 	// unigrams have order-1
 	// bigrams have order-2 etc.
-	private int order = 1;
+	private int order = 2;
 	
 	// this will keep track of the counts of 
 	// the ngrams we've seen in training
@@ -85,6 +85,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  if (sentenceCounter%1000==0){
 			  System.out.println("   Reading sentence "+sentenceCounter+" ("+sentenceCounter/totalSentences*100+"%)");
 		  }
+		  
 		  List<String> stoppedSentence = new ArrayList<String>(sentence);
 		  // add a STOP at the end, and N-1 START at the beginning
 		  stoppedSentence.add(STOP);
@@ -104,7 +105,6 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		  for (List<String> ngram: ngrams) {
 			ngc.insert(ngram);
 		  }
-		  
 		  
 		}
 		/*System.out.println(sentences.size()+" sentences read, containing "+ngc.totalNgrams+" tokens.");
@@ -142,8 +142,12 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 		// create your own estimator here. this will be 
 		// used in the rest of the functions like
 		// generating-sentences, working out sentence-probabilities etc.
-		if ("DeletedInterpolationEstimator".equals(estimatorName))	{
-			estimator = new DeletedInterpolationEstimator(ngc, new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001));
+		if ("DeletedInterpolationTrigramEstimator".equals(estimatorName))	{
+			estimator = new DeletedInterpolationTrigramEstimator(ngc, new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.001));
+		}
+		else if ("DeletedInterpolationEstimator".equals(estimatorName))	{
+			//estimator = new DeletedInterpolationEstimator(ngc, new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.001));
+			estimator = new DeletedInterpolationEstimator(ngc, new AbsoluteDiscountingEstimator(ngc, order, 0.75));
 		}
 		else if ("smoothedGoodTuring".equals(estimatorName))	{
 			estimator = new smoothedGoodTuringEstimator(ngc,order);
@@ -155,7 +159,7 @@ public class EmpiricalNgramLanguageModel implements LanguageModel	{
 			estimator = new AbsoluteDiscountingEstimator(ngc, order, 0.75);
 		}
 		else if ("MaximumLikelihoodWithDeltaSmoothingEstimator".equals(estimatorName))	{
-			estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.0001);
+			estimator = new MaximumLikelihoodWithDeltaSmoothingEstimator(ngc, order, 0.001);
 		}
 		else if ("MaximumLikelihoodWithLaplaceSmoothingEstimator".equals(estimatorName))	{
 			estimator = new MaximumLikelihoodWithLaplaceSmoothingEstimator(ngc, order);

@@ -38,8 +38,8 @@ public class DeletedInterpolationEstimator implements NgramProbabilityEstimator	
 	
 	public double getNgramConditionalProbability(List<String> ngram)	{
 		
-		double lambda1 = 0.75;
-		double lambda2 = 0.25;
+		double lambda1 = 1.00;
+		double lambda2 = 1 - lambda1;
 	
 		if (ngram.size() == 1){
 			return baseEstimator.getNgramConditionalProbability(ngram);
